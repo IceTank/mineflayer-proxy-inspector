@@ -1,8 +1,6 @@
 import { Client, Conn, PacketMiddleware } from "@rob9315/mcproxy";
-// import type { Packet } from '@rob9315/mcproxy';
 import { createServer, PacketMeta } from "minecraft-protocol";
 const wait = require('util').promisify(setTimeout)
-// import readline from "readline";
 import { FakeClient, FakePlayer } from "./util";
 import { BotOptions } from "mineflayer";
 
@@ -25,6 +23,10 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
       port: proxyOptions?.port ?? 25566,
       version: '1.12.2'
     })
+
+    conn.bot.once('end', () => {
+      server.close()
+    })
   
     server.on('login', (client) => {
       const fakePlayer = new FakePlayer(conn.bot, client)
@@ -35,7 +37,8 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
       fakeClient.makeSpectator()
       
       conn.attach(client as unknown as Client, {
-        toClientMiddleware: toClientMiddleware
+        toClientMiddleware: inspector_toClientMiddleware,
+        toServerMiddleware: inspector_toServerMiddleware
       })
 
       client.on('end', () => {
@@ -44,7 +47,18 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
     })
   })
 
-  function toClientMiddleware(info: { bound: 'server' | 'client'; writeType: 'packet' | 'rawPacket' | 'channel'; meta: PacketMeta; }, pclient: Client, data: any, cancel: () => void) {
+  function inspector_toServerMiddleware(info: { bound: 'server' | 'client'; writeType: 'packet' | 'rawPacket' | 'channel'; meta: PacketMeta; }, pclient: Client, data: any, cancel: () => void, isCanceled: boolean) {
+    if (info.meta.name !== 'chat') return
+    if (!(data.message as string).startsWith('$')) return
+    const cmd = (data.message as string).trim().substring(1)
+    if (cmd === 'link') {
+      conn.sendPackets(pclient)
+      conn.link(pclient)
+    }
+  }
+
+  function inspector_toClientMiddleware(info: { bound: 'server' | 'client'; writeType: 'packet' | 'rawPacket' | 'channel'; meta: PacketMeta; }, pclient: Client, data: any, cancel: () => void, isCanceled: boolean) {
+    if (isCanceled) return
     if (info.bound !== 'client') return
     if (blockedPackets.includes(info.meta.name)) return cancel()
     if (info.meta.name === 'position' && data) {

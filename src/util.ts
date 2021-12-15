@@ -2,6 +2,8 @@ import { Vec3 } from "vec3";
 import { ServerClient } from "minecraft-protocol";
 import { Bot } from "mineflayer";
 import { performance } from "perf_hooks";
+import { Item as ItemType, NotchItem } from "prismarine-item";
+import Item from "prismarine-item";
 
 class FakeEntity {
   knownPosition: Vec3
@@ -11,6 +13,9 @@ class FakeEntity {
   oldYaw: number
   oldPitch: number
   onGround: boolean
+  mainHand?: NotchItem
+  offHand?: NotchItem
+  armor: Array<NotchItem|undefined>
   constructor(pos: Vec3, yaw: number, pitch: number) {
     this.knownPosition = pos
     this.yaw = yaw
@@ -19,6 +24,7 @@ class FakeEntity {
     this.oldPitch = pitch
     this.onGround = true
     this.lastSendPos = performance.now()
+    this.armor = []
   }
 }
 
@@ -32,12 +38,15 @@ export class FakePlayer {
   listenerMove?: () => void
   listenerForceMove?: () => void
   listenerPhysics?: () => void
+  listenerInventory?: () => void
+  pItem: typeof ItemType
   constructor(bot: Bot, client: ServerClient, options: {username?: string, uuid?: string} = {}) {
     this.name = options.username ?? 'Player'
     this.uuid = options.uuid ?? 'a01e3843-e521-3998-958a-f459800e4d11'
     this.bot = bot
     this.client = client
     this.fakePlayerEntity = new FakeEntity(bot.entity.position.clone(), bot.entity.yaw, bot.entity.pitch) 
+    this.pItem = Item(bot.version)
     this._listenToBot()
   }
 
@@ -153,8 +162,12 @@ export class FakePlayer {
       this.fakePlayerEntity.yaw = this.bot.entity.yaw
       this.fakePlayerEntity.pitch = this.bot.entity.pitch
     }
+    this.listenerInventory = () => {
+      this.updateEquipment()
+    }
     this.bot.on('move', this.listenerMove)
     this.bot.on('forcedMove', this.listenerForceMove)
+    this.bot.inventory.on('updateSlot', this.listenerInventory)
   }
 
   destroy() {
@@ -175,6 +188,45 @@ export class FakePlayer {
     })
   }
 
+  updateEquipment() {
+    const NotchItemEqual = (item1?: NotchItem, item2?: NotchItem) => {
+      item1 = item1 ?? {}
+      item2 = item2 ?? {}
+      return JSON.stringify(item1) === JSON.stringify(item2)
+    }
+
+    const mainHand = this.bot.heldItem ? this.pItem.toNotch(this.bot.heldItem) : undefined
+    const offHand = this.bot.inventory.slots[45] ? this.pItem.toNotch(this.bot.inventory.slots[45]) : undefined
+    // Main hand
+    if (!NotchItemEqual(mainHand, this.fakePlayerEntity.mainHand)) {
+      this.client.write('entity_equipment', {
+        entityId: FakePlayer.fakePlayerId,
+        slot: 0,
+        item: mainHand
+      })
+    }
+    // Off-Hand
+    if (!NotchItemEqual(offHand, this.fakePlayerEntity.offHand)) {
+      this.client.write('entity_equipment', {
+        entityId: FakePlayer.fakePlayerId,
+        slot: 1,
+        item: offHand
+      })
+    }
+    // Armor
+    const equipmentMap = [5, 4, 3, 2]
+    for (let i = 0; i < 4; i++) {
+      // Armor slots start at 5
+      const armorItem = this.bot.inventory.slots[i + 5] ? this.pItem.toNotch(this.bot.inventory.slots[i + 5]) : undefined
+      if (NotchItemEqual(armorItem, this.fakePlayerEntity.armor[i])) continue
+      this.client.write('entity_equipment', {
+        entityId: FakePlayer.fakePlayerId,
+        slot: equipmentMap[i],
+        item: armorItem
+      })
+    }
+  }
+
   writePlayerEntity() {
     this.client.write('named_entity_spawn', {
       entityId: FakePlayer.fakePlayerId,
@@ -187,6 +239,8 @@ export class FakePlayer {
       metadata: []
     })
 
+    this.updateEquipment()
+    
     this.client.write('entity_look', {
       entityId: FakePlayer.fakePlayerId,
       yaw: this.bot.entity.yaw,
