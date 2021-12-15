@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@rob9315/mcproxy": "^0.2.3",
+    "@rob9315/mcproxy": "github:IceTank/mcproxy-1#middleware",
     "mineflayer": "^3.11.2"
   }
 }
