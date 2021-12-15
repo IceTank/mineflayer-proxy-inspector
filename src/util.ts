@@ -167,6 +167,7 @@ export class FakePlayer {
     }
     this.bot.on('move', this.listenerMove)
     this.bot.on('forcedMove', this.listenerForceMove)
+    // @ts-ignore
     this.bot.inventory.on('updateSlot', this.listenerInventory)
   }
 
