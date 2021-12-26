@@ -4,6 +4,7 @@ import { Bot } from "mineflayer";
 import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
+import { packetAbilities } from "@rob9315/mcproxy";
 
 class FakeEntity {
   knownPosition: Vec3
@@ -40,6 +41,7 @@ export class FakePlayer {
   listenerPhysics?: () => void
   listenerInventory?: () => void
   pItem: typeof ItemType
+  isSpawned: boolean
   constructor(bot: Bot, client: ServerClient, options: {username?: string, uuid?: string} = {}) {
     this.name = options.username ?? 'Player'
     this.uuid = options.uuid ?? 'a01e3843-e521-3998-958a-f459800e4d11'
@@ -47,7 +49,8 @@ export class FakePlayer {
     this.client = client
     this.fakePlayerEntity = new FakeEntity(bot.entity.position.clone(), bot.entity.yaw, bot.entity.pitch) 
     this.pItem = Item(bot.version)
-    this._listenToBot()
+    this._initListener()
+    this.isSpawned = false
   }
 
   static gameModeToNotchian(gamemode: string): 1 | 0 | 2 {
@@ -63,7 +66,7 @@ export class FakePlayer {
     }
   }
 
-  _listenToBot() {
+  _initListener() {
     this.listenerMove = () => {
       // From flying-squid updatePosition.js 
       // known position is very important because the diff (/delta) send to players is floored hence is not precise enough
@@ -80,6 +83,13 @@ export class FakePlayer {
       if (diff.distanceTo(new Vec3(0, 0, 0)) !== 0) {
         if (diff.abs().x > maxDelta || diff.abs().y > maxDelta || diff.abs().z > maxDelta) {
           let entityPosition = position // 1.12.2 Specific
+          
+          this.fakePlayerEntity.knownPosition = position
+          this.fakePlayerEntity.onGround = this.bot.entity.onGround
+          this.fakePlayerEntity.yaw = this.bot.entity.yaw
+          this.fakePlayerEntity.pitch = this.bot.entity.pitch
+
+          if (!this.isSpawned) return
           this.client.write('entity_teleport', {
             entityId: FakePlayer.fakePlayerId,
             x: entityPosition.x,
@@ -89,15 +99,15 @@ export class FakePlayer {
             pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
             onGround: this.bot.entity.onGround
           })
-          this.fakePlayerEntity.knownPosition = position
-          this.fakePlayerEntity.onGround = this.bot.entity.onGround
-          this.fakePlayerEntity.yaw = this.bot.entity.yaw
-          this.fakePlayerEntity.pitch = this.bot.entity.pitch
           this.fakePlayerEntity.lastSendPos = performance.now()
         } else if (!lookChanged) {
           // 1.12.2 specific
           const delta = diff.scaled(32).scaled(128).floored()
           this.fakePlayerEntity.knownPosition = this.bot.entity.position.plus(delta.scaled(1 / 32 / 128))
+          this.fakePlayerEntity.knownPosition = position
+          this.fakePlayerEntity.onGround = this.bot.entity.onGround
+
+          if (!this.isSpawned) return
           this.client.write('rel_entity_move', {
             entityId: FakePlayer.fakePlayerId,
             dX: delta.x,
@@ -105,12 +115,16 @@ export class FakePlayer {
             dZ: delta.z,
             onGround: this.bot.entity.onGround
           })
-          this.fakePlayerEntity.knownPosition = position
-          this.fakePlayerEntity.onGround = this.bot.entity.onGround
         } else if (lookChanged) {
           // 1.12.2 specific
           const delta = diff.scaled(32).scaled(128).floored()
           this.fakePlayerEntity.knownPosition = this.bot.entity.position.plus(delta.scaled(1 / 32 / 128))
+          this.fakePlayerEntity.knownPosition = position
+          this.fakePlayerEntity.onGround = this.bot.entity.onGround
+          this.fakePlayerEntity.yaw = this.bot.entity.yaw
+          this.fakePlayerEntity.pitch = this.bot.entity.pitch
+
+          if (!this.isSpawned) return
           this.client.write('entity_move_look', {
             entityId: FakePlayer.fakePlayerId,
             dX: delta.x,
@@ -124,23 +138,21 @@ export class FakePlayer {
             entityId: FakePlayer.fakePlayerId,
             headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
           })
-          this.fakePlayerEntity.knownPosition = position
-          this.fakePlayerEntity.onGround = this.bot.entity.onGround
-          this.fakePlayerEntity.yaw = this.bot.entity.yaw
-          this.fakePlayerEntity.pitch = this.bot.entity.pitch
         }
       } else {
         const { yaw, pitch, onGround } = this.bot.entity
         if (yaw === this.fakePlayerEntity.yaw && pitch === this.fakePlayerEntity.pitch) return
+        this.fakePlayerEntity.onGround = onGround
+        this.fakePlayerEntity.yaw = yaw
+        this.fakePlayerEntity.pitch = pitch
+
+        if (!this.isSpawned) return
         this.client.write('entity_look', {
           entityId: FakePlayer.fakePlayerId,
           yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
           pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
           onGround: this.bot.entity.onGround
         })
-        this.fakePlayerEntity.onGround = onGround
-        this.fakePlayerEntity.yaw = yaw
-        this.fakePlayerEntity.pitch = pitch
         this.client.write('entity_head_rotation', {
           entityId: FakePlayer.fakePlayerId,
           headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
@@ -148,7 +160,11 @@ export class FakePlayer {
       }
     }
     this.listenerForceMove = () => {
-      console.info('forcedMove')
+      this.fakePlayerEntity.knownPosition = this.bot.entity.position
+      this.fakePlayerEntity.yaw = this.bot.entity.yaw
+      this.fakePlayerEntity.pitch = this.bot.entity.pitch
+
+      if (!this.isSpawned) return
       this.client.write('entity_teleport', {
         entityId: 9999,
         x: this.bot.entity.position.x,
@@ -158,11 +174,9 @@ export class FakePlayer {
         pitch: this.bot.entity.pitch,
         onGround: this.bot.entity.onGround
       })
-      this.fakePlayerEntity.knownPosition = this.bot.entity.position
-      this.fakePlayerEntity.yaw = this.bot.entity.yaw
-      this.fakePlayerEntity.pitch = this.bot.entity.pitch
     }
     this.listenerInventory = () => {
+      if (!this.isSpawned) return
       this.updateEquipment()
     }
     this.bot.on('move', this.listenerMove)
@@ -174,6 +188,10 @@ export class FakePlayer {
   destroy() {
     if (this.listenerMove) this.bot.removeListener('move', this.listenerMove)
     if (this.listenerForceMove) this.bot.removeListener('forcedMove', this.listenerForceMove)
+    if (this.listenerInventory) {
+      // @ts-ignore
+      this.bot.inventory.removeListener('updateSlot', this.listenerInventory)
+    }
   }
 
   writePlayerInfo() {
@@ -248,15 +266,37 @@ export class FakePlayer {
       pitch: this.bot.entity.pitch,
       onGround: this.bot.entity.onGround
     })
+
+    this.client.write('entity_head_rotation', {
+      entityId: FakePlayer.fakePlayerId,
+      headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
+    })
   }
 
   spawn() {
+    if (this.isSpawned) throw new Error('Already spawned')
+    this._initListener()
     this.writePlayerInfo()
     this.writePlayerEntity()
+    this.isSpawned = true
+  }
+
+  deSpawn() {
+    if (!this.isSpawned) throw new Error('Nothing to de-spawn player not spawned')
+    this.client.write('entity_destroy', {
+      entityIds: [ FakePlayer.fakePlayerId ]
+    })
+    this.client.write('player_info', {
+      action: 4,
+      data: [{
+        UUID: this.uuid
+      }]
+    })
+    this.isSpawned = false
   }
 }
 
-export class FakeClient {
+export class FakeSpectator {
   client: ServerClient
   constructor(client: ServerClient) {
     this.client = client
@@ -274,5 +314,15 @@ export class FakeClient {
         gamemode: 3
       }
     })
+  }
+  revertToNormal(bot: Bot) {
+    this.client.write('position', {
+      ...bot.entity.position,
+      yaw: bot.entity.yaw,
+      pitch: bot.entity.pitch,
+      onGround: bot.entity.onGround
+    })
+    const a = packetAbilities(bot)
+    this.client.write(a.name, a.data)
   }
 }

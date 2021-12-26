@@ -1,7 +1,7 @@
-import { Client, Conn, PacketMiddleware } from "@rob9315/mcproxy";
+import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
 import { createServer, PacketMeta } from "minecraft-protocol";
 const wait = require('util').promisify(setTimeout)
-import { FakeClient, FakePlayer } from "./util";
+import { FakeSpectator, FakePlayer } from "./util";
 import { BotOptions } from "mineflayer";
 
 export interface ProxyOptions {
@@ -15,6 +15,8 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
 
   const blockedPackets = ['abilities', 'position']
   let gotPosition = false
+  let fakePlayer: FakePlayer
+  let fakeSpectator: FakeSpectator
 
   conn.bot.once('spawn', () => {
     const server = createServer({
@@ -29,12 +31,12 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
     })
   
     server.on('login', (client) => {
-      const fakePlayer = new FakePlayer(conn.bot, client)
-      const fakeClient = new FakeClient(client)
+      fakePlayer = new FakePlayer(conn.bot, client)
+      fakeSpectator = new FakeSpectator(client)
       conn.sendPackets(client as unknown as Client)
   
       fakePlayer.spawn()
-      fakeClient.makeSpectator()
+      fakeSpectator.makeSpectator()
       
       conn.attach(client as unknown as Client, {
         toClientMiddleware: inspector_toClientMiddleware,
@@ -47,13 +49,25 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
     })
   })
 
-  function inspector_toServerMiddleware(info: { bound: 'server' | 'client'; writeType: 'packet' | 'rawPacket' | 'channel'; meta: PacketMeta; }, pclient: Client, data: any, cancel: () => void, isCanceled: boolean) {
+  function inspector_toServerMiddleware(info: { bound: 'server' | 'client'; writeType: 'packet' | 'rawPacket' | 'channel'; meta: PacketMeta; }, pclient: Client, data: any, cancel: (unCancel?: boolean) => void, isCanceled: boolean) {
     if (info.meta.name !== 'chat') return
-    if (!(data.message as string).startsWith('$')) return
-    const cmd = (data.message as string).trim().substring(1)
-    if (cmd === 'link') {
-      conn.sendPackets(pclient)
-      conn.link(pclient)
+    console.info('Client chat')
+    if ((data.message as string).startsWith('$')) {
+      const cmd = (data.message as string).trim().substring(1)
+      if (cmd === 'link') {
+        conn.link(pclient)
+        fakePlayer.deSpawn()
+        fakeSpectator.revertToNormal(conn.bot)
+        // conn.sendPackets(pclient)
+      } else if (cmd === 'unlink') {
+        conn.unlink()
+        fakePlayer.spawn()
+        fakeSpectator.makeSpectator()
+      }
+      cancel()
+      return
+    } else {
+      cancel(false)
     }
   }
 
