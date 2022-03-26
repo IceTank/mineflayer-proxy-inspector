@@ -1,6 +1,5 @@
 import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
 import { createServer, PacketMeta } from "minecraft-protocol";
-const wait = require('util').promisify(setTimeout)
 import { FakeSpectator, FakePlayer } from "./util";
 import { BotOptions } from "mineflayer";
 
@@ -49,7 +48,7 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
     })
   })
 
-  function inspector_toServerMiddleware(info: { bound: 'server' | 'client'; writeType: 'packet' | 'rawPacket' | 'channel'; meta: PacketMeta; }, pclient: Client, data: any, cancel: (unCancel?: boolean) => void, isCanceled: boolean) {
+  const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler) => {
     if (info.meta.name !== 'chat') return
     console.info('Client chat')
     if ((data.message as string).startsWith('$')) {
@@ -64,23 +63,23 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
         fakePlayer.spawn()
         fakeSpectator.makeSpectator()
       }
-      cancel()
+      canceler()
       return
     } else {
-      cancel(false)
+      canceler(false)
     }
   }
 
-  function inspector_toClientMiddleware(info: { bound: 'server' | 'client'; writeType: 'packet' | 'rawPacket' | 'channel'; meta: PacketMeta; }, pclient: Client, data: any, cancel: () => void, isCanceled: boolean) {
-    if (isCanceled) return
+  const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler) => {
+    if (canceler.isCanceled) return
     if (info.bound !== 'client') return
-    if (blockedPackets.includes(info.meta.name)) return cancel()
+    if (blockedPackets.includes(info.meta.name)) return canceler()
     if (info.meta.name === 'position' && data) {
       if (!gotPosition) {
         gotPosition = true
         return
       }
-      cancel()
+      canceler()
       return
     } else if (info.meta.name === 'collect') {
       if (data.collectorEntityId === conn.bot.entity.id) {

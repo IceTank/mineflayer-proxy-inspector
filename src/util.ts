@@ -1,10 +1,12 @@
 import { Vec3 } from "vec3";
 import { ServerClient } from "minecraft-protocol";
-import { Bot } from "mineflayer";
+import { Bot as VanillaBot } from "mineflayer";
 import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
 import { packetAbilities } from "@rob9315/mcproxy";
+
+type Bot = VanillaBot & { recipes: number[] }
 
 class FakeEntity {
   knownPosition: Vec3
