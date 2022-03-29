@@ -38,8 +38,8 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
       fakeSpectator.makeSpectator()
       
       conn.attach(client as unknown as Client, {
-        toClientMiddleware: inspector_toClientMiddleware,
-        toServerMiddleware: inspector_toServerMiddleware
+        toClientMiddleware: [inspector_toClientMiddleware, inspector_toClientMiddlewareRecipesFix],
+        toServerMiddleware: [inspector_toServerMiddleware]
       })
 
       client.on('end', () => {
@@ -85,6 +85,15 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
       if (data.collectorEntityId === conn.bot.entity.id) {
         data.collectorEntityId = FakePlayer.fakePlayerId
       }
+    }
+  }
+
+  const inspector_toClientMiddlewareRecipesFix: PacketMiddleware = (info, pclient, data, canceler) => {
+    if (canceler.isCanceled) return
+    if (info.bound !== 'client') return
+    if (info.meta.name === 'unlock_recipes') {
+      canceler()
+      return
     }
   }
 
