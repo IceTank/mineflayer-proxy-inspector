@@ -48,29 +48,35 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
     })
   })
 
-  const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler) => {
+  const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
     if (info.meta.name !== 'chat') return
-    console.info('Client chat')
-    if ((data.message as string).startsWith('$')) {
-      const cmd = (data.message as string).trim().substring(1)
-      if (cmd === 'link') {
-        conn.link(pclient)
-        fakePlayer.deSpawn()
-        fakeSpectator.revertToNormal(conn.bot)
-        // conn.sendPackets(pclient)
-      } else if (cmd === 'unlink') {
-        conn.unlink()
-        fakePlayer.spawn()
-        fakeSpectator.makeSpectator()
+    if (info.meta.name === 'chat') {
+      console.info('Client chat')
+      if ((data.message as string).startsWith('$')) { // command
+        const cmd = (data.message as string).trim().substring(1) // remove $
+        if (cmd === 'link') { // link command, replace the bot on the server
+          conn.link(pclient)
+          fakePlayer.deSpawn()
+          fakeSpectator.revertToNormal(conn.bot)
+          canceler()
+          return
+        } else if (cmd === 'unlink') { // unlink command, give control back to the bot
+          conn.unlink()
+          fakePlayer.spawn()
+          fakeSpectator.makeSpectator()
+          canceler()
+          return
+        }
+      } else { // Normal chat messages
+        console.info('None command parse through:' + data.message) 
+        update()
+        canceler(true)
       }
-      canceler()
       return
-    } else {
-      canceler(false)
     }
   }
 
-  const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler) => {
+  const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
     if (canceler.isCanceled) return
     if (info.bound !== 'client') return
     if (blockedPackets.includes(info.meta.name)) return canceler()
@@ -84,6 +90,7 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
     } else if (info.meta.name === 'collect') {
       if (data.collectorEntityId === conn.bot.entity.id) {
         data.collectorEntityId = FakePlayer.fakePlayerId
+        update()
       }
     }
   }
