@@ -1,6 +1,9 @@
 # Mineflayer proxy inspector
 Proxys your connection into a server by taking control away from the bot and giving it to your client. Works with 1.12.2 (and 1.18.2 soon TM)
 
+## Note
+Currently requires a special fork off [mcproxy](https://github.com/rob9315/mcproxy) that can be found [here](https://github.com/IceTank/mcproxy-1/tree/middleware)
+
 ## Features
 - World persistance (World is loaded from the bots memory when joining)
 - Real time packet interception and editing
