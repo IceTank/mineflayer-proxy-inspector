@@ -2,10 +2,25 @@ import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob931
 import { createServer, PacketMeta } from "minecraft-protocol";
 import { FakeSpectator, FakePlayer } from "./util";
 import { BotOptions } from "mineflayer";
+import EventEmitter from "events";
 
 export interface ProxyOptions {
   port?: number
   motd?: string
+}
+
+declare module 'mineflayer' {
+  interface Bot {
+    proxy: {
+      botIsControlling: boolean
+      emitter: ProxyInspectorEmitter
+    }
+  }
+}
+
+interface ProxyInspectorEmitter extends EventEmitter {
+  on(event: 'proxyBotLostControl', listener: () => void): this
+  on(event: 'proxyBotTookControl', listener: () => void): this
 }
 
 export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
@@ -16,6 +31,11 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
   let gotPosition = false
   let fakePlayer: FakePlayer
   let fakeSpectator: FakeSpectator
+
+  conn.bot.proxy = {
+    botIsControlling: true,
+    emitter: new EventEmitter()
+  }
 
   conn.bot.once('spawn', () => {
     const server = createServer({
@@ -56,15 +76,23 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
         const cmd = (data.message as string).trim().substring(1) // remove $
         if (cmd === 'link') { // link command, replace the bot on the server
           conn.link(pclient)
+          conn.bot.proxy.botIsControlling = false
           fakePlayer.deSpawn()
           fakeSpectator.revertToNormal(conn.bot)
           canceler()
+          setTimeout(() => {
+            conn.bot.proxy.emitter.emit('proxyBotLostControl')
+          })
           return
         } else if (cmd === 'unlink') { // unlink command, give control back to the bot
           conn.unlink()
+          conn.bot.proxy.botIsControlling = true
           fakePlayer.spawn()
           fakeSpectator.makeSpectator()
           canceler()
+          setTimeout(() => {
+            conn.bot.proxy.emitter.emit('proxyBotTookControl')
+          })
           return
         }
       } else { // Normal chat messages
