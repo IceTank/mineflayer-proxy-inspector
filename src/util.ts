@@ -1,6 +1,6 @@
 import { Vec3 } from "vec3";
 import { ServerClient } from "minecraft-protocol";
-import { Bot } from "mineflayer";
+import { Bot, GameState } from "mineflayer";
 import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
@@ -298,8 +298,46 @@ export class FakePlayer {
 
 export class FakeSpectator {
   client: ServerClient
+  isInCamera: boolean
+  updatePosHandle?: NodeJS.Timer
   constructor(client: ServerClient) {
     this.client = client
+    this.isInCamera = false
+    this.updatePosHandle = undefined
+  }
+  makeViewingBotPov(bot: Bot) {
+    if (this.isInCamera) return
+    this.client.write('camera', {
+      cameraId: FakePlayer.fakePlayerId
+    })
+    const updatePos = () => {
+      this.client.write('position', {
+        ...bot.entity.position,
+        yaw: 180 - (bot.entity.yaw * 180) / Math.PI,
+        pitch: -(bot.entity.pitch * 180) / Math.PI,
+        onGround: bot.entity.onGround
+      })
+    }
+    updatePos()
+    this.updatePosHandle = setInterval(() => {
+      if (!this.isInCamera && this.updatePosHandle) {
+        clearInterval(this.updatePosHandle)
+        this.updatePosHandle = undefined
+      }
+      updatePos()
+    }, 2000)
+    this.isInCamera = true
+  }
+  revertPov(bot: Bot) {
+    if (!this.isInCamera) return
+    if (this.updatePosHandle) {
+      clearInterval(this.updatePosHandle)
+      this.updatePosHandle = undefined
+    }
+    this.client.write('camera', {
+      cameraId: bot.entity.id
+    })
+    this.isInCamera = false
   }
   makeSpectator() {
     this.client.write('abilities', {
@@ -309,20 +347,40 @@ export class FakeSpectator {
     })
     this.client.write('player_info', {
       action: 1,
-      data: {
+      data: [{
         UUID: this.client.uuid,
-        gamemode: 3
-      }
+        gamemode: gamemodeToNumber('spectator')
+      }]
     })
   }
   revertToNormal(bot: Bot) {
+    this.revertPov(bot)
     this.client.write('position', {
       ...bot.entity.position,
       yaw: bot.entity.yaw,
       pitch: bot.entity.pitch,
       onGround: bot.entity.onGround
     })
+    this.client.write('player_info', {
+      action: 1,
+      data: [{
+        UUID: this.client.uuid,
+        gamemode: gamemodeToNumber(bot.game.gameMode)
+      }]
+    })
     const a = packetAbilities(bot)
     this.client.write(a.name, a.data)
+  }
+}
+
+function gamemodeToNumber(str: GameState["gameMode"]) {
+  if (str === 'survival') {
+    return 0
+  } else if (str === 'creative') {
+    return 1
+  } else if (str === 'adventure') {
+    return 2
+  } else if (str === 'spectator') {
+    return 3
   }
 }

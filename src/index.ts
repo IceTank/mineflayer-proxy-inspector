@@ -63,6 +63,10 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
         conn.unlink()
         fakePlayer.spawn()
         fakeSpectator.makeSpectator()
+      } else if (cmd === 'view') {
+        fakeSpectator.makeViewingBotPov(conn.bot)
+      } else if (cmd === 'unview') {
+        fakeSpectator.revertPov(conn.bot)
       }
       cancel()
       return
