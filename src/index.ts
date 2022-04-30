@@ -37,7 +37,7 @@ export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions) {
     emitter: new EventEmitter()
   }
 
-  conn.bot.once('spawn', () => {
+  conn.bot.once('login', () => {
     const server = createServer({
       motd: proxyOptions?.motd ?? 'mc proxy bot inspector',
       'online-mode': false,
