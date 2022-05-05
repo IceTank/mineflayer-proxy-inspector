@@ -4,6 +4,7 @@ import type { Server } from "minecraft-protocol";
 import { FakeSpectator, FakePlayer } from "./util";
 import { BotOptions } from "mineflayer";
 import EventEmitter from "events";
+import type { MessageBuilder } from 'prismarine-chat'
 
 export interface ProxyOptions {
   port?: number
@@ -162,6 +163,11 @@ export class InspectorProxy extends EventEmitter {
     line1 = String(line1).replace(/\n/g, '').slice(0, 200) // remove newlines
     line2 = String(line2).replace(/\n/g, '').slice(0, 200)
     this.server.motd = `${line1}\n${line2}`
+  }
+
+  setChatMessageMotd(message: MessageBuilder) {
+    if (!this.server) return
+    this.server.chatMessageMotd = message
   }
 }
 
