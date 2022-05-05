@@ -1,5 +1,6 @@
 import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
 import { createServer, PacketMeta } from "minecraft-protocol";
+import type { Server } from "minecraft-protocol";
 import { FakeSpectator, FakePlayer } from "./util";
 import { BotOptions } from "mineflayer";
 import EventEmitter from "events";
@@ -34,12 +35,14 @@ export class InspectorProxy extends EventEmitter {
   options: BotOptions
   proxyOptions: ProxyOptions
   conn: Conn
+  server: Server | undefined
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
     this.options = options
     this.proxyOptions = proxyOptions
     this.conn = new Conn(options)
+    this.server = undefined
     this.init()
   }
 
@@ -151,6 +154,13 @@ export class InspectorProxy extends EventEmitter {
         return
       }
     }
+  }
+
+  setMotd(line1: string, line2: string = "") {
+    if (!this.server) return
+    line1 = String(line1).replace(/\n/g, '').slice(0, 200) // remove newlines
+    line2 = String(line2).replace(/\n/g, '').slice(0, 200)
+    this.server.motd = `${line1}\n${line2}`
   }
 }
 
