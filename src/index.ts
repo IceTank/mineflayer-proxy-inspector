@@ -58,7 +58,7 @@ export class InspectorProxy extends EventEmitter {
     }
 
     this.conn.bot.once('login', () => {
-      const server = createServer({
+      this.server = createServer({
         motd: this.proxyOptions.motd ?? 'mc proxy bot inspector',
         'online-mode': false,
         port: this.proxyOptions.port ?? 25566,
@@ -66,10 +66,11 @@ export class InspectorProxy extends EventEmitter {
       })
 
       this.conn.bot.once('end', () => {
-        server.close()
+        if (!this.server) return
+        this.server.close()
       })
     
-      server.on('login', (client) => {
+      this.server.on('login', (client) => {
         fakePlayer = new FakePlayer(this.conn.bot, client)
         fakeSpectator = new FakeSpectator(client)
         this.conn.sendPackets(client as unknown as Client)
