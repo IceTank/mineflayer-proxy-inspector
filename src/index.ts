@@ -4,7 +4,6 @@ import type { Server } from "minecraft-protocol";
 import { FakeSpectator, FakePlayer } from "./util";
 import { BotOptions } from "mineflayer";
 import EventEmitter from "events";
-import type { MessageBuilder } from 'prismarine-chat'
 
 export interface ProxyOptions {
   port?: number
@@ -47,9 +46,12 @@ export class InspectorProxy extends EventEmitter {
     this.init()
   }
 
+  botIsInControl() {
+    return !this.conn.writingPclient
+  }
+
   private init() {
-    const blockedPackets = ['abilities', 'position']
-    let gotPosition = false
+    const blockedPacketsWhenNotInControl = ['abilities', 'position']
     let fakePlayer: FakePlayer
     let fakeSpectator: FakeSpectator
 
@@ -132,15 +134,10 @@ export class InspectorProxy extends EventEmitter {
     const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (canceler.isCanceled) return
       if (info.bound !== 'client') return
-      if (blockedPackets.includes(info.meta.name)) return canceler()
-      if (info.meta.name === 'position' && data) {
-        if (!gotPosition) {
-          gotPosition = true
-          return
-        }
-        canceler()
-        return
-      } else if (info.meta.name === 'collect') {
+      if (this.botIsInControl()) {
+        if (blockedPacketsWhenNotInControl.includes(info.meta.name)) return canceler()
+      }
+      if (info.meta.name === 'collect' && this.botIsInControl()) {
         if (data.collectorEntityId === this.conn.bot.entity.id) {
           data.collectorEntityId = FakePlayer.fakePlayerId
           update()
