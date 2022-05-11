@@ -27,7 +27,9 @@ interface ProxyInspectorEmitter extends EventEmitter {
 export interface InspectorProxy {
   on(event: 'clientConnect', listener: (client: Client) => void): this
   on(event: 'clientDisconnect', listener: (client: Client) => void): this
+  /** Chat messages excluding proxy commands */
   on(event: 'clientChat', listener: (client: Client, message: string) => void): this
+  /** All chat messages including proxy commands */
   on(event: 'clientChatRaw', listener: (client: Client, message: string) => void): this
 }
 
@@ -96,9 +98,9 @@ export class InspectorProxy extends EventEmitter {
     })
 
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
-      if (info.meta.name !== 'chat') return
       if (info.meta.name === 'chat') {
         console.info('Client chat')
+        this.emit('clientChatRaw', pclient, data.message)
         if ((data.message as string).startsWith('$')) { // command
           const cmd = (data.message as string).trim().substring(1) // remove $
           if (cmd === 'link') { // link command, replace the bot on the server
@@ -123,7 +125,8 @@ export class InspectorProxy extends EventEmitter {
             return
           }
         } else { // Normal chat messages
-          console.info('None command parse through:' + data.message) 
+          console.info('None command parse through:' + data.message)
+          this.emit('clientChat', pclient, data.message)
           update()
           canceler(true)
         }
