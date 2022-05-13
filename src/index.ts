@@ -8,6 +8,11 @@ import EventEmitter from "events";
 export interface ProxyOptions {
   port?: number
   motd?: string
+  security?: {
+    onlineMode?: boolean
+    allowList?: string[]
+    kickMessage?: string
+  }
 }
 
 declare module 'mineflayer' {
@@ -48,6 +53,11 @@ export class InspectorProxy extends EventEmitter {
     this.init()
   }
 
+  playerInWhitelist(name: string) {
+    if (!this.proxyOptions.security) return true
+    return this.proxyOptions.security?.allowList?.find(n => n.toLowerCase() === name.toLowerCase()) !== undefined
+  }
+
   botIsInControl() {
     return !this.conn.writingPclient
   }
@@ -65,7 +75,7 @@ export class InspectorProxy extends EventEmitter {
     this.conn.bot.once('login', () => {
       this.server = createServer({
         motd: this.proxyOptions.motd ?? 'mc proxy bot inspector',
-        'online-mode': false,
+        'online-mode': this.proxyOptions.security?.onlineMode ?? false,
         port: this.proxyOptions.port ?? 25566,
         version: '1.12.2'
       })
@@ -76,6 +86,10 @@ export class InspectorProxy extends EventEmitter {
       })
     
       this.server.on('login', (client) => {
+        if (!this.playerInWhitelist(client.username)) {
+          client.end(this.proxyOptions.security?.kickMessage ?? 'You are not in the whitelist')
+          return
+        } 
         fakePlayer = new FakePlayer(this.conn.bot, client)
         fakeSpectator = new FakeSpectator(client)
         this.conn.sendPackets(client as unknown as Client)
