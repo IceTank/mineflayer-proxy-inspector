@@ -181,7 +181,7 @@ export class InspectorProxy extends EventEmitter {
 
   setChatMessageMotd(message: Object) {
     if (!this.server) return
-    this.server.chatMessageMotd = message
+    this.server.motdMsg = message
   }
 }
 
