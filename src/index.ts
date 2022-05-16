@@ -54,7 +54,7 @@ export class InspectorProxy extends EventEmitter {
   }
 
   playerInWhitelist(name: string) {
-    if (!this.proxyOptions.security) return true
+    if (!this.proxyOptions.security?.allowList) return true
     return this.proxyOptions.security?.allowList?.find(n => n.toLowerCase() === name.toLowerCase()) !== undefined
   }
 
