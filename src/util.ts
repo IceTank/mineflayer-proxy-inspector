@@ -51,7 +51,7 @@ export class FakePlayer {
     this.client = client
     this.fakePlayerEntity = new FakeEntity(bot.entity.position.clone(), bot.entity.yaw, bot.entity.pitch) 
     this.pItem = Item(bot.version)
-    this._initListener()
+    this.initListener()
     this.isSpawned = false
   }
 
@@ -68,7 +68,7 @@ export class FakePlayer {
     }
   }
 
-  _initListener() {
+  private initListener() {
     this.listenerMove = () => {
       // From flying-squid updatePosition.js 
       // known position is very important because the diff (/delta) send to players is floored hence is not precise enough
@@ -277,7 +277,7 @@ export class FakePlayer {
 
   spawn() {
     if (this.isSpawned) throw new Error('Already spawned')
-    this._initListener()
+    this.initListener()
     this.writePlayerInfo()
     this.writePlayerEntity()
     this.isSpawned = true
@@ -294,6 +294,7 @@ export class FakePlayer {
         UUID: this.uuid
       }]
     })
+    this.destroy()
     this.isSpawned = false
   }
 }
