@@ -8,6 +8,13 @@ import { packetAbilities } from "@rob9315/mcproxy";
 
 type Bot = VanillaBot & { recipes: number[] }
 
+const NoneItemData = {
+  blockId: -1,
+  itemCount: undefined,
+  itemDamage: undefined,
+  nbtData: undefined
+}
+
 class FakeEntity {
   knownPosition: Vec3
   lastSendPos: number
@@ -216,8 +223,8 @@ export class FakePlayer {
       return JSON.stringify(item1) === JSON.stringify(item2)
     }
 
-    const mainHand = this.bot.heldItem ? this.pItem.toNotch(this.bot.heldItem) : undefined
-    const offHand = this.bot.inventory.slots[45] ? this.pItem.toNotch(this.bot.inventory.slots[45]) : undefined
+    const mainHand = this.bot.heldItem ? this.pItem.toNotch(this.bot.heldItem) : NoneItemData
+    const offHand = this.bot.inventory.slots[45] ? this.pItem.toNotch(this.bot.inventory.slots[45]) : NoneItemData
     // Main hand
     if (!NotchItemEqual(mainHand, this.fakePlayerEntity.mainHand)) {
       this.client.write('entity_equipment', {
@@ -238,7 +245,7 @@ export class FakePlayer {
     const equipmentMap = [5, 4, 3, 2]
     for (let i = 0; i < 4; i++) {
       // Armor slots start at 5
-      const armorItem = this.bot.inventory.slots[i + 5] ? this.pItem.toNotch(this.bot.inventory.slots[i + 5]) : undefined
+      const armorItem = this.bot.inventory.slots[i + 5] ? this.pItem.toNotch(this.bot.inventory.slots[i + 5]) : NoneItemData
       if (NotchItemEqual(armorItem, this.fakePlayerEntity.armor[i])) continue
       this.client.write('entity_equipment', {
         entityId: FakePlayer.fakePlayerId,
