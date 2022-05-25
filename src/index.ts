@@ -1,4 +1,4 @@
-import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
+import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "mcproxy";
 import { createServer, PacketMeta } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
 import { FakeSpectator, FakePlayer } from "./util";

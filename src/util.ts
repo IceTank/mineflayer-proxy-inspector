@@ -4,7 +4,7 @@ import { Bot as VanillaBot } from "mineflayer";
 import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
-import { packetAbilities } from "@rob9315/mcproxy";
+import { packetAbilities } from "mcproxy";
 
 type Bot = VanillaBot & { recipes: number[] }
 
