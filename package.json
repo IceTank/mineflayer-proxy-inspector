@@ -19,5 +19,8 @@
   },
   "devDependencies": {
     "@types/node": "^16.11.13"
+  },
+  "resolutions": {
+    "@rob9315/mcproxy/minecraft-protocol": "github:PrismarineJS/node-minecraft-protocol"
   }
 }
