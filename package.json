@@ -14,13 +14,10 @@
   "license": "ISC",
   "dependencies": {
     "@rob9315/mcproxy": "github:IceTank/mcproxy-1#middleware",
-    "minecraft-protocol": "github:PrismarineJS/node-minecraft-protocol",
+    "minecraft-protocol": "^1.35.0",
     "mineflayer": "^4.2.0"
   },
   "devDependencies": {
     "@types/node": "^16.11.13"
-  },
-  "resolutions": {
-    "@rob9315/mcproxy/minecraft-protocol": "github:PrismarineJS/node-minecraft-protocol"
   }
 }
