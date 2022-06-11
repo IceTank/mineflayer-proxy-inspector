@@ -59,7 +59,7 @@ export class InspectorProxy extends EventEmitter {
   }
 
   botIsInControl() {
-    return !this.conn.writingPclient
+    return !this.conn.writingClient
   }
 
   private init() {
