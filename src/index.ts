@@ -87,6 +87,7 @@ export class InspectorProxy extends EventEmitter {
     
       this.server.on('login', (client) => {
         if (!this.playerInWhitelist(client.username)) {
+          console.warn(`${client.username} (${client.socket?.address()}) is not in the whitelist, kicking`)
           client.end(this.proxyOptions.security?.kickMessage ?? 'You are not in the whitelist')
           return
         } 
