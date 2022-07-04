@@ -144,10 +144,16 @@ export class InspectorProxy extends EventEmitter {
     this.sendPackets(client)
     this.attach(client)
 
-    if (!this.proxyOptions.linkOnConnect) {
+    const connect = this.proxyOptions.linkOnConnect && !this.conn.writingClient
+
+    if (!connect) {
+      console.info('Connection not linking for client', client.username)
       this.fakePlayer?.register(client)
-      this.fakePlayer?.spawn(client)
+      // this.fakePlayer?.spawn(client)
       this.fakeSpectator?.makeSpectator(client)
+    } else {
+      console.info('Connection linking for client', client.username)
+      this.link(client)
     }
 
     client.once('end', () => {
@@ -156,10 +162,6 @@ export class InspectorProxy extends EventEmitter {
     })
 
     this.emit('clientConnect', client)
-
-    if (this.proxyOptions.linkOnConnect) {
-      this.link(client)
-    }
   }
 
   genToServerMiddleware(client: ServerClient) {
@@ -170,9 +172,18 @@ export class InspectorProxy extends EventEmitter {
         if ((data.message as string).startsWith('$')) { // command
           const cmd = (data.message as string).trim().substring(1) // remove $
           if (cmd === 'link') { // link command, replace the bot on the server
+            if (pclient === this.conn.writingClient) {
+              console.warn('Already in control cannot link!')
+              return
+            }
+            if (this.conn.writingClient) {
+              console.info('Cannot link. Another account is already in control')
+              return
+            }
             this.link(pclient as unknown as ServerClient)
-            this.conn.bot.proxy.botIsControlling = false
-            this.fakePlayer?.deSpawn(client)
+            this.conn.bot.proxy.botIsControlling = !this.conn.writingClient
+            // this.fakePlayer?.deSpawn(client)
+            this.fakePlayer?.unregister(client)
             this.fakeSpectator?.revertToNormal(client)
             canceler()
             setTimeout(() => {
@@ -180,9 +191,14 @@ export class InspectorProxy extends EventEmitter {
             })
             return
           } else if (cmd === 'unlink') { // unlink command, give control back to the bot
+            if (pclient !== this.conn.writingClient) {
+              console.warn('Cannot unlink as not in control!')
+              return
+            }
             this.unlink()
             this.conn.bot.proxy.botIsControlling = true
-            this.fakePlayer?.spawn(client)
+            // this.fakePlayer?.spawn(client)
+            this.fakePlayer?.register(client)
             this.fakeSpectator?.makeSpectator(client)
             canceler()
             setTimeout(() => {
