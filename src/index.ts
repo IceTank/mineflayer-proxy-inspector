@@ -1,5 +1,5 @@
 import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
-import { createServer, PacketMeta } from "minecraft-protocol";
+import { createServer, ServerClient } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
 import { FakeSpectator, FakePlayer } from "./util";
 import { BotOptions } from "mineflayer";
@@ -46,6 +46,7 @@ export class InspectorProxy extends EventEmitter {
   server: Server | undefined
   fakePlayer?: FakePlayer
   fakeSpectator?: FakeSpectator
+  blockedPacketsWhenNotInControl: string[]
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
@@ -53,6 +54,7 @@ export class InspectorProxy extends EventEmitter {
     this.proxyOptions = proxyOptions
     this.conn = new Conn(options)
     this.server = undefined
+    this.blockedPacketsWhenNotInControl = ['abilities', 'position']
     this.init()
   }
 
@@ -65,9 +67,34 @@ export class InspectorProxy extends EventEmitter {
     return !this.conn.writingClient
   }
 
-  private init() {
-    const blockedPacketsWhenNotInControl = ['abilities', 'position']
+  attach(client: ServerClient) {
+    const toClientMiddleware = this.genToClientMiddleware(client)
+    const toServerMiddleware = this.genToServerMiddleware(client)
 
+    this.conn.attach(client as unknown as Client, {
+      toClientMiddleware: toClientMiddleware,
+      toServerMiddleware: toServerMiddleware
+    })
+  }
+
+  link(client: ServerClient) {
+    if (!this.conn.writingClient) {
+      console.info('Linking', this.proxyOptions.linkOnConnect)
+      this.conn.link(client as unknown as Client)
+    } else {
+      console.warn('Cannot link newly connected client on login as there is already a client connected')
+    }
+  }
+
+  unlink() {
+    this.conn.unlink()
+  }
+
+  sendPackets(client: ServerClient) {
+    this.conn.sendPackets(client as unknown as Client)
+  }
+
+  private init() {
     this.conn.bot.proxy = {
       botIsControlling: true,
       emitter: new EventEmitter()
@@ -94,111 +121,113 @@ export class InspectorProxy extends EventEmitter {
       this.conn.bot.once('end', () => {
         if (!this.server) return
         this.server.close()
+        this.fakePlayer?.destroy()
       })
     
-      this.server.on('login', (client) => {
-        if (!this.playerInWhitelist(client.username)) {
-          const { address, family, port } = {
-            address: 'unknown',
-            family: 'unknown',
-            port: 'unknown',
-            ...client.socket.address()
-          }
-          console.warn(`${client.username} is not in the whitelist, kicking (${address}, ${family}, ${port})`)
-          client.end(this.proxyOptions.security?.kickMessage ?? 'You are not in the whitelist')
-          return
-        }
-
-        const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
-          if (info.meta.name === 'chat') {
-            console.info('Client chat')
-            this.emit('clientChatRaw', pclient, data.message)
-            if ((data.message as string).startsWith('$')) { // command
-              const cmd = (data.message as string).trim().substring(1) // remove $
-              if (cmd === 'link') { // link command, replace the bot on the server
-                this.conn.link(pclient)
-                this.conn.bot.proxy.botIsControlling = false
-                this.fakePlayer?.deSpawn(client)
-                this.fakeSpectator?.revertToNormal(client)
-                canceler()
-                setTimeout(() => {
-                  this.conn.bot.proxy.emitter.emit('proxyBotLostControl')
-                })
-                return
-              } else if (cmd === 'unlink') { // unlink command, give control back to the bot
-                this.conn.unlink()
-                this.conn.bot.proxy.botIsControlling = true
-                this.fakePlayer?.spawn(client)
-                this.fakeSpectator?.makeSpectator(client)
-                canceler()
-                setTimeout(() => {
-                  this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
-                })
-                return
-              }
-            } else { // Normal chat messages
-              console.info('None command parse through:' + data.message)
-              this.emit('clientChat', pclient, data.message)
-              update()
-              canceler(true)
-            }
-            return
-          }
-        }
-    
-        const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
-          if (canceler.isCanceled) return
-          if (info.bound !== 'client') return
-          if (this.botIsInControl()) {
-            if (blockedPacketsWhenNotInControl.includes(info.meta.name)) return canceler()
-          }
-          if (info.meta.name === 'collect' && this.botIsInControl()) {
-            if (data.collectorEntityId === this.conn.bot.entity.id) {
-              data.collectorEntityId = FakePlayer.fakePlayerId
-              update()
-            }
-          }
-        }
-    
-        const inspector_toClientMiddlewareRecipesFix: PacketMiddleware = (info, pclient, data, canceler) => {
-          if (canceler.isCanceled) return
-          if (info.bound !== 'client') return
-          if (info.meta.name === 'unlock_recipes') {
-            canceler()
-            return
-          }
-        }
-
-        this.conn.sendPackets(client as unknown as Client)
-    
-        if (!this.proxyOptions.linkOnConnect) {
-          this.fakePlayer?.register(client)
-          this.fakePlayer?.spawn(client)
-          this.fakeSpectator?.makeSpectator(client)
-        }
-        
-        this.conn.attach(client as unknown as Client, {
-          toClientMiddleware: [inspector_toClientMiddleware, inspector_toClientMiddlewareRecipesFix],
-          toServerMiddleware: [inspector_toServerMiddleware]
-        })
-
-        client.once('end', () => {
-          this.fakePlayer?.unregister(client)
-          this.emit('clientDisconnect', client)
-        })
-
-        this.emit('clientConnect', client)
-
-        if (this.proxyOptions.linkOnConnect) {
-          if (!this.conn.writingClient) {
-            console.info('Linking', this.proxyOptions.linkOnConnect)
-            this.conn.link(client as unknown as Client)
-          } else {
-            console.warn('Cannot link newly connected client on login as there is already a client connected')
-          }
-        }
-      })
+      this.server.on('login', this.onClientLogin.bind(this))
     })
+  }
+
+  onClientLogin(client: ServerClient) {
+    if (!this.playerInWhitelist(client.username)) {
+      const { address, family, port } = {
+        address: 'unknown',
+        family: 'unknown',
+        port: 'unknown',
+        ...client.socket.address()
+      }
+      console.warn(`${client.username} is not in the whitelist, kicking (${address}, ${family}, ${port})`)
+      client.end(this.proxyOptions.security?.kickMessage ?? 'You are not in the whitelist')
+      return
+    }
+
+    this.sendPackets(client)
+    this.attach(client)
+
+    if (!this.proxyOptions.linkOnConnect) {
+      this.fakePlayer?.register(client)
+      this.fakePlayer?.spawn(client)
+      this.fakeSpectator?.makeSpectator(client)
+    }
+
+    client.once('end', () => {
+      this.fakePlayer?.unregister(client)
+      this.emit('clientDisconnect', client)
+    })
+
+    this.emit('clientConnect', client)
+
+    if (this.proxyOptions.linkOnConnect) {
+      this.link(client)
+    }
+  }
+
+  genToServerMiddleware(client: ServerClient) {
+    const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
+      if (info.meta.name === 'chat') {
+        console.info('Client chat')
+        this.emit('clientChatRaw', pclient, data.message)
+        if ((data.message as string).startsWith('$')) { // command
+          const cmd = (data.message as string).trim().substring(1) // remove $
+          if (cmd === 'link') { // link command, replace the bot on the server
+            this.link(pclient as unknown as ServerClient)
+            this.conn.bot.proxy.botIsControlling = false
+            this.fakePlayer?.deSpawn(client)
+            this.fakeSpectator?.revertToNormal(client)
+            canceler()
+            setTimeout(() => {
+              this.conn.bot.proxy.emitter.emit('proxyBotLostControl')
+            })
+            return
+          } else if (cmd === 'unlink') { // unlink command, give control back to the bot
+            this.unlink()
+            this.conn.bot.proxy.botIsControlling = true
+            this.fakePlayer?.spawn(client)
+            this.fakeSpectator?.makeSpectator(client)
+            canceler()
+            setTimeout(() => {
+              this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
+            })
+            return
+          }
+        } else { // Normal chat messages
+          console.info('None command parse through:' + data.message)
+          this.emit('clientChat', pclient, data.message)
+          update()
+          canceler(true)
+        }
+        return
+      }
+    }
+
+    return [inspector_toServerMiddleware]
+  }
+
+  genToClientMiddleware(client: ServerClient) {
+    const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
+      if (canceler.isCanceled) return
+      if (info.bound !== 'client') return
+      if (this.botIsInControl()) {
+        if (this.blockedPacketsWhenNotInControl.includes(info.meta.name)) return canceler()
+      }
+      if (info.meta.name === 'collect' && this.botIsInControl()) {
+        if (data.collectorEntityId === this.conn.bot.entity.id) {
+          data.collectorEntityId = FakePlayer.fakePlayerId
+          update()
+        }
+      }
+    }
+  
+    const inspector_toClientMiddlewareRecipesFix: PacketMiddleware = (info, pclient, data, canceler) => {
+      if (canceler.isCanceled) return
+      if (info.bound !== 'client') return
+      if (info.meta.name === 'unlock_recipes') {
+        canceler()
+        return
+      }
+    }
+
+    return [inspector_toClientMiddleware, inspector_toClientMiddlewareRecipesFix]
   }
 
   setMotd(line1: string, line2: string = "") {
