@@ -42,7 +42,6 @@ export class FakePlayer {
   name: string
   uuid: string
   bot: Bot
-  client: ServerClient
   fakePlayerEntity: FakeEntity
   static fakePlayerId: number = 9999
   listenerMove?: () => void
@@ -51,14 +50,15 @@ export class FakePlayer {
   listenerInventory?: () => void
   pItem: typeof ItemType
   isSpawned: boolean
-  constructor(bot: Bot, client: ServerClient, options: {username?: string, uuid?: string} = {}) {
+  connectedClients: ServerClient[]
+  constructor(bot: Bot, options: {username?: string, uuid?: string} = {}) {
     this.name = options.username ?? 'Player'
     this.uuid = options.uuid ?? 'a01e3843-e521-3998-958a-f459800e4d11'
     this.bot = bot
-    this.client = client
     this.fakePlayerEntity = new FakeEntity(bot.entity.position.clone(), bot.entity.yaw, bot.entity.pitch) 
     this.pItem = Item(bot.version)
     this.initListener()
+    this.connectedClients = []
     this.isSpawned = false
   }
 
@@ -76,6 +76,11 @@ export class FakePlayer {
   }
 
   private initListener() {
+    const writeToClients = (name: string, data: Object) => {
+      for (const c of this.connectedClients) {
+        c.write(name, data)
+      }
+    }
     this.listenerMove = () => {
       // From flying-squid updatePosition.js 
       // known position is very important because the diff (/delta) send to players is floored hence is not precise enough
@@ -99,7 +104,7 @@ export class FakePlayer {
           this.fakePlayerEntity.pitch = this.bot.entity.pitch
 
           if (!this.isSpawned) return
-          this.client.write('entity_teleport', {
+          writeToClients('entity_teleport', {
             entityId: FakePlayer.fakePlayerId,
             x: entityPosition.x,
             y: entityPosition.y,
@@ -117,7 +122,7 @@ export class FakePlayer {
           this.fakePlayerEntity.onGround = this.bot.entity.onGround
 
           if (!this.isSpawned) return
-          this.client.write('rel_entity_move', {
+          writeToClients('rel_entity_move', {
             entityId: FakePlayer.fakePlayerId,
             dX: delta.x,
             dY: delta.y,
@@ -134,7 +139,7 @@ export class FakePlayer {
           this.fakePlayerEntity.pitch = this.bot.entity.pitch
 
           if (!this.isSpawned) return
-          this.client.write('entity_move_look', {
+          writeToClients('entity_move_look', {
             entityId: FakePlayer.fakePlayerId,
             dX: delta.x,
             dY: delta.y,
@@ -143,7 +148,7 @@ export class FakePlayer {
             pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
             onGround: this.bot.entity.onGround
           })
-          this.client.write('entity_head_rotation', {
+          writeToClients('entity_head_rotation', {
             entityId: FakePlayer.fakePlayerId,
             headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
           })
@@ -156,13 +161,13 @@ export class FakePlayer {
         this.fakePlayerEntity.pitch = pitch
 
         if (!this.isSpawned) return
-        this.client.write('entity_look', {
+        writeToClients('entity_look', {
           entityId: FakePlayer.fakePlayerId,
           yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
           pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
           onGround: this.bot.entity.onGround
         })
-        this.client.write('entity_head_rotation', {
+        writeToClients('entity_head_rotation', {
           entityId: FakePlayer.fakePlayerId,
           headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
         })
@@ -174,7 +179,7 @@ export class FakePlayer {
       this.fakePlayerEntity.pitch = this.bot.entity.pitch
 
       if (!this.isSpawned) return
-      this.client.write('entity_teleport', {
+      writeToClients('entity_teleport', {
         entityId: 9999,
         x: this.bot.entity.position.x,
         y: this.bot.entity.position.y,
@@ -186,12 +191,24 @@ export class FakePlayer {
     }
     this.listenerInventory = () => {
       if (!this.isSpawned) return
-      this.updateEquipment()
+      this.connectedClients.forEach(c => {
+        this.updateEquipment(c)
+      })
     }
     this.bot.on('move', this.listenerMove)
     this.bot.on('forcedMove', this.listenerForceMove)
     // @ts-ignore
     this.bot.inventory.on('updateSlot', this.listenerInventory)
+  }
+
+  register(client: ServerClient) {
+    if (!this.connectedClients.includes(client)) {
+      this.connectedClients.push(client)
+    }
+  }
+
+  unregister(client: ServerClient) {
+    this.connectedClients = this.connectedClients.filter(c => c !== client)
   }
 
   destroy() {
@@ -203,8 +220,8 @@ export class FakePlayer {
     }
   }
 
-  writePlayerInfo() {
-    this.client.write('player_info', {
+  writePlayerInfo(client: ServerClient) {
+    client.write('player_info', {
       action: 0,
       data: [{
         UUID: this.uuid,
@@ -216,7 +233,7 @@ export class FakePlayer {
     })
   }
 
-  updateEquipment() {
+  updateEquipment(client: ServerClient) {
     const NotchItemEqual = (item1?: NotchItem, item2?: NotchItem) => {
       item1 = item1 ?? {}
       item2 = item2 ?? {}
@@ -227,7 +244,7 @@ export class FakePlayer {
     const offHand = this.bot.inventory.slots[45] ? this.pItem.toNotch(this.bot.inventory.slots[45]) : NoneItemData
     // Main hand
     if (!NotchItemEqual(mainHand, this.fakePlayerEntity.mainHand)) {
-      this.client.write('entity_equipment', {
+      client.write('entity_equipment', {
         entityId: FakePlayer.fakePlayerId,
         slot: 0,
         item: mainHand
@@ -235,7 +252,7 @@ export class FakePlayer {
     }
     // Off-Hand
     if (!NotchItemEqual(offHand, this.fakePlayerEntity.offHand)) {
-      this.client.write('entity_equipment', {
+      client.write('entity_equipment', {
         entityId: FakePlayer.fakePlayerId,
         slot: 1,
         item: offHand
@@ -247,7 +264,7 @@ export class FakePlayer {
       // Armor slots start at 5
       const armorItem = this.bot.inventory.slots[i + 5] ? this.pItem.toNotch(this.bot.inventory.slots[i + 5]) : NoneItemData
       if (NotchItemEqual(armorItem, this.fakePlayerEntity.armor[i])) continue
-      this.client.write('entity_equipment', {
+      client.write('entity_equipment', {
         entityId: FakePlayer.fakePlayerId,
         slot: equipmentMap[i],
         item: armorItem
@@ -255,8 +272,8 @@ export class FakePlayer {
     }
   }
 
-  writePlayerEntity() {
-    this.client.write('named_entity_spawn', {
+  writePlayerEntity(client: ServerClient) {
+    client.write('named_entity_spawn', {
       entityId: FakePlayer.fakePlayerId,
       playerUUID: this.uuid,
       x: this.bot.entity.position.x,
@@ -267,35 +284,35 @@ export class FakePlayer {
       metadata: []
     })
 
-    this.updateEquipment()
+    this.updateEquipment(client)
     
-    this.client.write('entity_look', {
+    client.write('entity_look', {
       entityId: FakePlayer.fakePlayerId,
       yaw: this.bot.entity.yaw,
       pitch: this.bot.entity.pitch,
       onGround: this.bot.entity.onGround
     })
 
-    this.client.write('entity_head_rotation', {
+    client.write('entity_head_rotation', {
       entityId: FakePlayer.fakePlayerId,
       headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
     })
   }
 
-  spawn() {
+  spawn(client: ServerClient) {
     if (this.isSpawned) throw new Error('Already spawned')
-    this.initListener()
-    this.writePlayerInfo()
-    this.writePlayerEntity()
+    // this.initListener()
+    this.writePlayerInfo(client)
+    this.writePlayerEntity(client)
     this.isSpawned = true
   }
 
-  deSpawn() {
+  deSpawn(client: ServerClient) {
     if (!this.isSpawned) throw new Error('Nothing to de-spawn player not spawned')
-    this.client.write('entity_destroy', {
+    client.write('entity_destroy', {
       entityIds: [ FakePlayer.fakePlayerId ]
     })
-    this.client.write('player_info', {
+    client.write('player_info', {
       action: 4,
       data: [{
         UUID: this.uuid
@@ -307,32 +324,32 @@ export class FakePlayer {
 }
 
 export class FakeSpectator {
-  client: ServerClient
-  constructor(client: ServerClient) {
-    this.client = client
+  bot: Bot
+  constructor(bot: Bot) {
+    this.bot = bot
   }
-  makeSpectator() {
-    this.client.write('abilities', {
+  makeSpectator(client: ServerClient) {
+    client.write('abilities', {
       flags: 7,
       flyingSpeed: 0.05000000074505806,
       walkingSpeed: 0.10000000149011612
     })
-    this.client.write('player_info', {
+    client.write('player_info', {
       action: 1,
       data: {
-        UUID: this.client.uuid,
+        UUID: client.uuid,
         gamemode: 3
       }
     })
   }
-  revertToNormal(bot: Bot) {
-    this.client.write('position', {
-      ...bot.entity.position,
-      yaw: bot.entity.yaw,
-      pitch: bot.entity.pitch,
-      onGround: bot.entity.onGround
+  revertToNormal(client: ServerClient) {
+    client.write('position', {
+      ...this.bot.entity.position,
+      yaw: this.bot.entity.yaw,
+      pitch: this.bot.entity.pitch,
+      onGround: this.bot.entity.onGround
     })
-    const a = packetAbilities(bot)
-    this.client.write(a.name, a.data)
+    const a = packetAbilities(this.bot)
+    client.write(a.name, a.data)
   }
 }

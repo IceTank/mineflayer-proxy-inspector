@@ -4,6 +4,8 @@ const proxy = new InspectorProxy({
   host: 'localhost',
   username: 'proxyBot',
   version: '1.12.2'
+}, {
+  linkOnConnect: true
 })
 
 const conn = proxy.conn
