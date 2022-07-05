@@ -1,7 +1,7 @@
 import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
 import { createServer, ServerClient } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
-import { FakeSpectator, FakePlayer } from "./util";
+import { FakeSpectator, FakePlayer, sendMessage } from "./util";
 import { BotOptions } from "mineflayer";
 import EventEmitter from "events";
 
@@ -82,7 +82,9 @@ export class InspectorProxy extends EventEmitter {
       console.info('Linking', this.proxyOptions.linkOnConnect)
       this.conn.link(client as unknown as Client)
     } else {
-      console.warn('Cannot link newly connected client on login as there is already a client connected')
+      const mes = `Cannot link. User ${this.conn.writingClient.username} is linked.`
+      console.warn(mes)
+      sendMessage(client, mes)
     }
   }
 
@@ -177,10 +179,13 @@ export class InspectorProxy extends EventEmitter {
           if (cmd === 'link') { // link command, replace the bot on the server
             if (pclient === this.conn.writingClient) {
               console.warn('Already in control cannot link!')
+              sendMessage(pclient, 'Already in control cannot link!')
               return
             }
             if (this.conn.writingClient) {
-              console.info('Cannot link. Another account is already in control')
+              const mes = `Cannot link. User ${this.conn.writingClient.username} is currently linked.`
+              console.info(mes)
+              sendMessage(pclient, mes)
               return
             }
             this.link(pclient as unknown as ServerClient)
@@ -196,6 +201,7 @@ export class InspectorProxy extends EventEmitter {
           } else if (cmd === 'unlink') { // unlink command, give control back to the bot
             if (pclient !== this.conn.writingClient) {
               console.warn('Cannot unlink as not in control!')
+              sendMessage(pclient, 'Cannot unlink as not in control!')
               return
             }
             this.unlink()

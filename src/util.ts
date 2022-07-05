@@ -1,11 +1,12 @@
 import { Vec3 } from "vec3";
-import { ServerClient } from "minecraft-protocol";
+import { Client, ServerClient } from "minecraft-protocol";
 import { Bot as VanillaBot } from "mineflayer";
 import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
 import { packetAbilities } from "@rob9315/mcproxy";
 const fetch = require('node-fetch')
+const ChatMessage = require('prismarine-chat')('1.12.2')
 
 type Bot = VanillaBot & { recipes: number[] }
 
@@ -37,6 +38,11 @@ class FakeEntity {
     this.lastSendPos = performance.now()
     this.armor = []
   }
+}
+
+export function sendMessage(client: ServerClient | Client, message: string) {
+  const messageObj = new ChatMessage(message)
+  client.write('chat', { message: messageObj.json.toString() })
 }
 
 export class FakePlayer {
@@ -227,11 +233,16 @@ export class FakePlayer {
     // console.info('Sending request', `https://sessionserver.mojang.com/session/minecraft/profile/${this.uuid}?unsigned=false`)
     let properties = []
     if (this.skinLookup) {
-      const response = await fetch(`https://sessionserver.mojang.com/session/minecraft/profile/${this.uuid}?unsigned=false`)
-      const p = await response.json() as any
-      properties = p?.properties ?? []
-      if (properties?.length !== 1) {
-        console.warn('Skin lookup failed for', this.uuid)
+      let response
+      try {
+        response = await fetch(`https://sessionserver.mojang.com/session/minecraft/profile/${this.uuid}?unsigned=false`)
+        const p = await response.json() as any
+        properties = p?.properties ?? []
+        if (properties?.length !== 1) {
+          console.warn('Skin lookup failed for', this.uuid)
+        }
+      } catch (err) {
+        console.error('Skin lookup failed', err, response)
       }
     }
     // console.info('Player profile', p)
