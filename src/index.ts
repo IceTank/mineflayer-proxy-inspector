@@ -102,7 +102,10 @@ export class InspectorProxy extends EventEmitter {
 
     this.conn.bot.once('login', () => {
       console.info('Inject allowed event')
-      this.fakePlayer = new FakePlayer(this.conn.bot)
+      this.fakePlayer = new FakePlayer(this.conn.bot, {
+        username: this.conn.bot.username,
+        uuid: this.conn.bot._client.uuid
+      })
       this.fakeSpectator = new FakeSpectator(this.conn.bot)
     })
 

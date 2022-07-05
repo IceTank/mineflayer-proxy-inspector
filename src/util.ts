@@ -5,6 +5,7 @@ import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
 import { packetAbilities } from "@rob9315/mcproxy";
+const fetch = require('node-fetch')
 
 type Bot = VanillaBot & { recipes: number[] }
 
@@ -41,6 +42,7 @@ class FakeEntity {
 export class FakePlayer {
   name: string
   uuid: string
+  skinLookup: boolean
   bot: Bot
   fakePlayerEntity: FakeEntity
   static fakePlayerId: number = 9999
@@ -51,9 +53,10 @@ export class FakePlayer {
   pItem: typeof ItemType
   connectedClients: ServerClient[]
   private isSpawnedMap: Record<string, boolean> = {}
-  constructor(bot: Bot, options: {username?: string, uuid?: string} = {}) {
+  constructor(bot: Bot, options: {username?: string, uuid?: string, skinLookup?: boolean} = {}) {
     this.name = options.username ?? 'Player'
     this.uuid = options.uuid ?? 'a01e3843-e521-3998-958a-f459800e4d11'
+    this.skinLookup = options.skinLookup ?? true
     this.bot = bot
     this.fakePlayerEntity = new FakeEntity(bot.entity.position.clone(), bot.entity.yaw, bot.entity.pitch) 
     this.pItem = Item(bot.version)
@@ -220,13 +223,24 @@ export class FakePlayer {
     }
   }
 
-  writePlayerInfo(client: ServerClient) {
+  async writePlayerInfo(client: ServerClient) {
+    // console.info('Sending request', `https://sessionserver.mojang.com/session/minecraft/profile/${this.uuid}?unsigned=false`)
+    let properties = []
+    if (this.skinLookup) {
+      const response = await fetch(`https://sessionserver.mojang.com/session/minecraft/profile/${this.uuid}?unsigned=false`)
+      const p = await response.json() as any
+      properties = p?.properties ?? []
+      if (properties?.length !== 1) {
+        console.warn('Skin lookup failed for', this.uuid)
+      }
+    }
+    // console.info('Player profile', p)
     client.write('player_info', {
       action: 0,
       data: [{
         UUID: this.uuid,
         name: this.name,
-        properties: [],
+        properties: properties,
         gamemode: FakePlayer.gameModeToNotchian(this.bot.game.gameMode),
         ping: 0
       }]
@@ -304,9 +318,10 @@ export class FakePlayer {
     // if (this.isSpawned) throw new Error('Already spawned')
     if (client.uuid in this.isSpawnedMap && this.isSpawnedMap[client.uuid]) console.warn('Already spawned')
     // this.initListener()
-    this.writePlayerInfo(client)
-    this.writePlayerEntity(client)
-    this.isSpawnedMap[client.uuid] = true
+    this.writePlayerInfo(client).then(() => {
+      this.writePlayerEntity(client)
+      this.isSpawnedMap[client.uuid] = true
+    }).catch(console.error)
   }
 
   private deSpawn(client: ServerClient) {
