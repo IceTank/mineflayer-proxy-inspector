@@ -6,6 +6,8 @@ import { BotOptions } from "mineflayer";
 import EventEmitter, { once } from "events";
 import { setTimeout } from "timers/promises";
 
+export { sendMessage }
+
 export interface ProxyOptions {
   port?: number
   motd?: string
@@ -83,7 +85,7 @@ export class InspectorProxy extends EventEmitter {
     this.conn = new Conn(this.options)
     this.registerEvents()
     await once(this.conn.bot, 'login')
-    await this.conn.bot.waitForTicks(2)
+    await setTimeout(1000)
     this.emit('botStart', this.conn)
     if (this.server) {
       const motd = this.proxyOptions.motd ?? 'logged in with ' + this.conn.bot.username
