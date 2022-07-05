@@ -3,7 +3,8 @@ import { createServer, ServerClient } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
 import { FakeSpectator, FakePlayer, sendMessage } from "./util";
 import { BotOptions } from "mineflayer";
-import EventEmitter from "events";
+import EventEmitter, { once } from "events";
+import { setTimeout } from "timers/promises";
 
 export interface ProxyOptions {
   port?: number
@@ -13,7 +14,9 @@ export interface ProxyOptions {
     allowList?: string[]
     kickMessage?: string
   },
-  linkOnConnect?: boolean
+  linkOnConnect?: boolean,
+  startOnLogin?: boolean,
+  stopOnLogoff?: boolean
 }
 
 declare module 'mineflayer' {
@@ -37,12 +40,14 @@ export interface InspectorProxy {
   on(event: 'clientChat', listener: (client: Client, message: string) => void): this
   /** All chat messages including proxy commands */
   on(event: 'clientChatRaw', listener: (client: Client, message: string) => void): this
+  on(event: 'botStart', listener: (conn: Conn) => void): this
+  on(event: 'serverStart', listener: () => void): this
 }
 
 export class InspectorProxy extends EventEmitter {
   options: BotOptions
   proxyOptions: ProxyOptions
-  conn: Conn
+  conn?: Conn
   server: Server | undefined
   fakePlayer?: FakePlayer
   fakeSpectator?: FakeSpectator
@@ -52,10 +57,12 @@ export class InspectorProxy extends EventEmitter {
     super()
     this.options = options
     this.proxyOptions = proxyOptions
-    this.conn = new Conn(options)
     this.server = undefined
     this.blockedPacketsWhenNotInControl = ['abilities', 'position']
-    this.init()
+    if (!this.proxyOptions.startOnLogin) {
+      this.start()
+    }
+    this.startServer()
   }
 
   playerInWhitelist(name: string) {
@@ -64,7 +71,38 @@ export class InspectorProxy extends EventEmitter {
   }
 
   botIsInControl() {
+    if (!this.conn) return false
     return !this.conn.writingClient
+  }
+
+  async start() {
+    if (this.conn) {
+      console.warn('Already running not starting')
+      return
+    }
+    this.conn = new Conn(this.options)
+    this.registerEvents()
+    await once(this.conn.bot, 'login')
+    await this.conn.bot.waitForTicks(2)
+    this.emit('botStart', this.conn)
+    if (this.server) {
+      const motd = this.proxyOptions.motd ?? 'logged in with ' + this.conn.bot.username
+      this.server.motd = motd
+    }
+  }
+
+  stop() {
+    if (this.conn === undefined) {
+      console.warn('Already stopped')
+      return
+    }
+    console.info('Stopping')
+    this.fakePlayer?.destroy()
+    this.conn.disconnect()
+    this.conn = undefined
+    if (this.server) {
+      this.server.motd = 'Offline waiting for connections'
+    }
   }
 
   broadcastMessage(message: string) {
@@ -75,6 +113,7 @@ export class InspectorProxy extends EventEmitter {
   }
 
   attach(client: ServerClient) {
+    if (!this.conn) return
     const toClientMiddleware = this.genToClientMiddleware(client)
     const toServerMiddleware = this.genToServerMiddleware(client)
 
@@ -85,6 +124,7 @@ export class InspectorProxy extends EventEmitter {
   }
 
   link(client: ServerClient) {
+    if (!this.conn) return
     if (!this.conn.writingClient) {
       console.info('Linking', this.proxyOptions.linkOnConnect)
       this.conn.link(client as unknown as Client)
@@ -96,21 +136,38 @@ export class InspectorProxy extends EventEmitter {
   }
 
   unlink() {
-    this.conn.unlink()
+    this.conn?.unlink()
   }
 
   sendPackets(client: ServerClient) {
-    this.conn.sendPackets(client as unknown as Client)
+    this.conn?.sendPackets(client as unknown as Client)
   }
 
-  private init() {
+  private startServer() {
+    const motd = this.proxyOptions.motd ?? this.conn === undefined ? 'waiting for connections' : 'logged in with ' + this.conn.bot.username
+    this.server = createServer({
+      motd: motd,
+      'online-mode': this.proxyOptions.security?.onlineMode ?? false,
+      port: this.proxyOptions.port ?? 25566,
+      version: '1.12.2'
+    })
+
+    this.server.on('listening', () => {
+      this.emit('serverStart')
+    })
+
+    this.server.on('login', this.onClientLogin.bind(this))
+  }
+
+  private registerEvents() {
+    if (!this.conn) return
     this.conn.bot.proxy = {
       botIsControlling: true,
       emitter: new EventEmitter()
     }
 
     this.conn.bot.once('login', () => {
-      console.info('Inject allowed event')
+      if (!this.conn) return
       this.fakePlayer = new FakePlayer(this.conn.bot, {
         username: this.conn.bot.username,
         uuid: this.conn.bot._client.uuid
@@ -119,28 +176,26 @@ export class InspectorProxy extends EventEmitter {
     })
 
     this.conn.bot.on('end', () => {
-      this.fakePlayer?.destroy()
+      if (this.proxyOptions.stopOnLogoff) this.stop()
     })
 
     this.conn.bot.once('login', () => {
-      this.server = createServer({
-        motd: this.proxyOptions.motd ?? 'mc proxy bot inspector',
-        'online-mode': this.proxyOptions.security?.onlineMode ?? false,
-        port: this.proxyOptions.port ?? 25566,
-        version: '1.12.2'
-      })
-
+      if (!this.conn) return
+      
       this.conn.bot.once('end', () => {
         if (!this.server) return
-        this.server.close()
+        // this.server.close()
         this.fakePlayer?.destroy()
       })
-    
-      this.server.on('login', this.onClientLogin.bind(this))
     })
   }
 
-  onClientLogin(client: ServerClient) {
+  async onClientLogin(client: ServerClient) {
+    if (!this.conn)
+    if (this.proxyOptions.startOnLogin) {
+      await this.start()
+    }
+    if (!this.conn) return
     if (!this.playerInWhitelist(client.username)) {
       const { address, family, port } = {
         address: 'unknown',
@@ -175,6 +230,12 @@ export class InspectorProxy extends EventEmitter {
       this.emit('clientDisconnect', client)
       this.broadcastMessage(`Proxy >> User ${client.username} disconnected`)
       console.info(`User ${client.username} logged off`, new Date())
+      if (this.proxyOptions.stopOnLogoff) {
+        if (this.server && Object.values(this.server?.clients).length === 0) {
+          console.info('Last player disconnected stopping server')
+          this.stop()
+        }
+      }
     })
 
     this.emit('clientConnect', client)
@@ -182,6 +243,7 @@ export class InspectorProxy extends EventEmitter {
 
   genToServerMiddleware(client: ServerClient) {
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
+      if (!this.conn) return
       if (info.meta.name === 'chat') {
         console.info('Client chat')
         this.emit('clientChatRaw', pclient, data.message)
@@ -205,7 +267,8 @@ export class InspectorProxy extends EventEmitter {
             this.fakePlayer?.unregister(client)
             this.fakeSpectator?.revertToNormal(client)
             canceler()
-            setTimeout(() => {
+            setTimeout().then(() => {
+              if (!this.conn) return
               this.conn.bot.proxy.emitter.emit('proxyBotLostControl')
             })
             return
@@ -221,7 +284,8 @@ export class InspectorProxy extends EventEmitter {
             this.fakePlayer?.register(client)
             this.fakeSpectator?.makeSpectator(client)
             canceler()
-            setTimeout(() => {
+            setTimeout().then(() => {
+              if (!this.conn) return
               this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
             })
             return
@@ -241,6 +305,7 @@ export class InspectorProxy extends EventEmitter {
 
   genToClientMiddleware(client: ServerClient) {
     const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
+      if (!this.conn) return
       if (canceler.isCanceled) return
       if (info.bound !== 'client') return
       if (this.botIsInControl()) {
@@ -288,5 +353,7 @@ export class InspectorProxy extends EventEmitter {
  */
 export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions): Conn {
   const cls = new InspectorProxy(options, proxyOptions)
+  cls.start()
+  if (!cls.conn) throw new Error('Something when wrong')
   return cls.conn
 }
