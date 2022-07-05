@@ -67,6 +67,13 @@ export class InspectorProxy extends EventEmitter {
     return !this.conn.writingClient
   }
 
+  broadcastMessage(message: string) {
+    if (!this.server?.clients) return
+    Object.values(this.server.clients).forEach(c => {
+      sendMessage(c, message)
+    })
+  }
+
   attach(client: ServerClient) {
     const toClientMiddleware = this.genToClientMiddleware(client)
     const toServerMiddleware = this.genToServerMiddleware(client)
@@ -145,11 +152,13 @@ export class InspectorProxy extends EventEmitter {
       client.end(this.proxyOptions.security?.kickMessage ?? 'You are not in the whitelist')
       return
     }
-
+    console.info(`User ${client.username} logged in`, new Date())
+    
     this.sendPackets(client)
     this.attach(client)
-
+    
     const connect = this.proxyOptions.linkOnConnect && !this.conn.writingClient
+    this.broadcastMessage(`Proxy >> User ${client.username} logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
 
     if (!connect) {
       console.info('Connection not linking for client', client.username)
@@ -164,6 +173,8 @@ export class InspectorProxy extends EventEmitter {
     client.once('end', () => {
       this.fakePlayer?.unregister(client)
       this.emit('clientDisconnect', client)
+      this.broadcastMessage(`Proxy >> User ${client.username} disconnected`)
+      console.info(`User ${client.username} logged off`, new Date())
     })
 
     this.emit('clientConnect', client)

@@ -349,7 +349,7 @@ export class FakePlayer {
         UUID: this.uuid
       }]
     })
-    this.destroy()
+    // this.destroy()
     // this.isSpawned = false
     this.isSpawnedMap[client.uuid] = false
   }
