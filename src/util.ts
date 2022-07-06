@@ -96,87 +96,119 @@ export class FakePlayer {
       // storing the known position allows to compensate next time a diff is sent
       // without the known position, the error accumulate fast and player position is incorrect from the point of view
       // of other players
-      const knownPosition = this.fakePlayerEntity.knownPosition
+      // const knownPosition = this.fakePlayerEntity.knownPosition
       const position = this.bot.entity.position
-      const diff = this.bot.entity.position.minus(knownPosition)
-      const maxDelta = 7 // 1.12.2 Specific
+      
+      let entityPosition = position // 1.12.2 Specific   
+      this.fakePlayerEntity.knownPosition = position
+      this.fakePlayerEntity.onGround = this.bot.entity.onGround
+      this.fakePlayerEntity.yaw = this.bot.entity.yaw
+      this.fakePlayerEntity.pitch = this.bot.entity.pitch
+      writeIfSpawned('entity_teleport', {
+        entityId: FakePlayer.fakePlayerId,
+        x: entityPosition.x,
+        y: entityPosition.y,
+        z: entityPosition.z,
+        yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
+        pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
+        // onGround: this.bot.entity.onGround
+        onGround: false
+      })
+      writeIfSpawned('entity_look', {
+        entityId: FakePlayer.fakePlayerId,
+        yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
+        pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
+        onGround: false
 
-      const lookChanged = this.fakePlayerEntity.yaw !== this.bot.entity.yaw || this.fakePlayerEntity.pitch !== this.bot.entity.pitch
+      })
+      writeIfSpawned('entity_head_rotation', {
+        entityId: FakePlayer.fakePlayerId,
+        headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
+      })
+      
+      // Yeah like this does not work
+      // const diff = this.bot.entity.position.minus(knownPosition)
+      // const maxDelta = 7 // 1.12.2 Specific
+      // const lookChanged = this.fakePlayerEntity.yaw !== this.bot.entity.yaw || this.fakePlayerEntity.pitch !== this.bot.entity.pitch
+      // if (diff.distanceTo(new Vec3(0, 0, 0)) !== 0) {
+      //   // Player models are glitching through the ground with relative movement updates
+      //   if (true || diff.abs().x > maxDelta || diff.abs().y > maxDelta || diff.abs().z > maxDelta) {
+      //     let entityPosition = position // 1.12.2 Specific   
+      //     this.fakePlayerEntity.knownPosition = position
+      //     this.fakePlayerEntity.onGround = this.bot.entity.onGround
+      //     this.fakePlayerEntity.yaw = this.bot.entity.yaw
+      //     this.fakePlayerEntity.pitch = this.bot.entity.pitch
 
-      if (diff.distanceTo(new Vec3(0, 0, 0)) !== 0) {
-        if (diff.abs().x > maxDelta || diff.abs().y > maxDelta || diff.abs().z > maxDelta) {
-          let entityPosition = position // 1.12.2 Specific
-          
-          this.fakePlayerEntity.knownPosition = position
-          this.fakePlayerEntity.onGround = this.bot.entity.onGround
-          this.fakePlayerEntity.yaw = this.bot.entity.yaw
-          this.fakePlayerEntity.pitch = this.bot.entity.pitch
+      //     console.info('Bot pos', entityPosition.toString())
 
-          writeIfSpawned('entity_teleport', {
-            entityId: FakePlayer.fakePlayerId,
-            x: entityPosition.x,
-            y: entityPosition.y,
-            z: entityPosition.z,
-            yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
-            pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
-            onGround: this.bot.entity.onGround
-          })
-          this.fakePlayerEntity.lastSendPos = performance.now()
-        } else if (!lookChanged) {
-          // 1.12.2 specific
-          const delta = diff.scaled(32).scaled(128).floored()
-          this.fakePlayerEntity.knownPosition = this.bot.entity.position.plus(delta.scaled(1 / 32 / 128))
-          this.fakePlayerEntity.knownPosition = position
-          this.fakePlayerEntity.onGround = this.bot.entity.onGround
+      //     writeIfSpawned('entity_teleport', {
+      //       entityId: FakePlayer.fakePlayerId,
+      //       x: entityPosition.x,
+      //       y: entityPosition.y,
+      //       z: entityPosition.z,
+      //       yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
+      //       pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
+      //       // onGround: this.bot.entity.onGround
+      //       onGround: false
+      //     })
+      //     this.fakePlayerEntity.lastSendPos = performance.now()
+      //   } else if (!lookChanged) {
+      //     // 1.12.2 specific
+      //     const delta = diff.scaled(32).scaled(128).floored()
+      //     this.fakePlayerEntity.knownPosition = this.bot.entity.position.plus(delta.scaled(1 / 32 / 128))
+      //     this.fakePlayerEntity.knownPosition = position
+      //     this.fakePlayerEntity.onGround = this.bot.entity.onGround
 
-          writeIfSpawned('rel_entity_move', {
-            entityId: FakePlayer.fakePlayerId,
-            dX: delta.x,
-            dY: delta.y,
-            dZ: delta.z,
-            onGround: this.bot.entity.onGround
-          })
-        } else if (lookChanged) {
-          // 1.12.2 specific
-          const delta = diff.scaled(32).scaled(128).floored()
-          this.fakePlayerEntity.knownPosition = this.bot.entity.position.plus(delta.scaled(1 / 32 / 128))
-          this.fakePlayerEntity.knownPosition = position
-          this.fakePlayerEntity.onGround = this.bot.entity.onGround
-          this.fakePlayerEntity.yaw = this.bot.entity.yaw
-          this.fakePlayerEntity.pitch = this.bot.entity.pitch
+      //     writeIfSpawned('rel_entity_move', {
+      //       entityId: FakePlayer.fakePlayerId,
+      //       dX: delta.x,
+      //       dY: delta.y,
+      //       dZ: delta.z,
+      //       // onGround: this.bot.entity.onGround
+      //       onGround: false
+      //     })
+      //   } else if (lookChanged) {
+      //     // 1.12.2 specific
+      //     const delta = diff.scaled(32).scaled(128).floored()
+      //     this.fakePlayerEntity.knownPosition = this.bot.entity.position.plus(delta.scaled(1 / 32 / 128))
+      //     this.fakePlayerEntity.knownPosition = position
+      //     this.fakePlayerEntity.onGround = this.bot.entity.onGround
+      //     this.fakePlayerEntity.yaw = this.bot.entity.yaw
+      //     this.fakePlayerEntity.pitch = this.bot.entity.pitch
 
-          writeIfSpawned('entity_move_look', {
-            entityId: FakePlayer.fakePlayerId,
-            dX: delta.x,
-            dY: delta.y,
-            dZ: delta.z,
-            yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
-            pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
-            onGround: this.bot.entity.onGround
-          })
-          writeIfSpawned('entity_head_rotation', {
-            entityId: FakePlayer.fakePlayerId,
-            headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
-          })
-        }
-      } else {
-        const { yaw, pitch, onGround } = this.bot.entity
-        if (yaw === this.fakePlayerEntity.yaw && pitch === this.fakePlayerEntity.pitch) return
-        this.fakePlayerEntity.onGround = onGround
-        this.fakePlayerEntity.yaw = yaw
-        this.fakePlayerEntity.pitch = pitch
+      //     writeIfSpawned('entity_move_look', {
+      //       entityId: FakePlayer.fakePlayerId,
+      //       dX: delta.x,
+      //       dY: delta.y,
+      //       dZ: delta.z,
+      //       yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
+      //       pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
+      //       // onGround: this.bot.entity.onGround
+      //       onGround: false
+      //     })
+      //     writeIfSpawned('entity_head_rotation', {
+      //       entityId: FakePlayer.fakePlayerId,
+      //       headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
+      //     })
+      //   }
+      // } else {
+      //   const { yaw, pitch, onGround } = this.bot.entity
+      //   if (yaw === this.fakePlayerEntity.yaw && pitch === this.fakePlayerEntity.pitch) return
+      //   this.fakePlayerEntity.onGround = onGround
+      //   this.fakePlayerEntity.yaw = yaw
+      //   this.fakePlayerEntity.pitch = pitch
 
-        writeIfSpawned('entity_look', {
-          entityId: FakePlayer.fakePlayerId,
-          yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
-          pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
-          onGround: this.bot.entity.onGround
-        })
-        writeIfSpawned('entity_head_rotation', {
-          entityId: FakePlayer.fakePlayerId,
-          headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
-        })
-      }
+      //   writeIfSpawned('entity_look', {
+      //     entityId: FakePlayer.fakePlayerId,
+      //     yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
+      //     pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
+      //     onGround: this.bot.entity.onGround
+      //   })
+      //   writeIfSpawned('entity_head_rotation', {
+      //     entityId: FakePlayer.fakePlayerId,
+      //     headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
+      //   })
+      // }
     }
     this.listenerForceMove = () => {
       this.fakePlayerEntity.knownPosition = this.bot.entity.position
@@ -200,6 +232,7 @@ export class FakePlayer {
       })
     }
     this.bot.on('move', this.listenerMove)
+    // setInterval(this.listenerMove.bind(this), 50)
     this.bot.on('forcedMove', this.listenerForceMove)
     // @ts-ignore
     this.bot.inventory.on('updateSlot', this.listenerInventory)
@@ -307,7 +340,9 @@ export class FakePlayer {
       z: this.bot.entity.position.z,
       yaw: this.bot.entity.yaw,
       pitch: this.bot.entity.pitch,
-      metadata: []
+      metadata: [{
+        key: 5, type: 6, value: true // No gravity
+      }]
     })
 
     this.updateEquipment(client)
