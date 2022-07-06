@@ -216,6 +216,7 @@ export class InspectorProxy extends EventEmitter {
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.writingClient
     this.broadcastMessage(`Proxy >> User ${client.username} logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
+    this.printHelp(client)
 
     if (!connect) {
       console.info('Connection not linking for client', client.username)
@@ -243,6 +244,17 @@ export class InspectorProxy extends EventEmitter {
     this.emit('clientConnect', client)
   }
 
+  printHelp(client: Client | ServerClient) {
+    sendMessage(client, 'Available commands:')
+    sendMessage(client, '$c [Message]    Send a message to all other connected clients')
+    sendMessage(client, '$link    Links to the proxy if no one else is linked')
+    sendMessage(client, '$unlink    Unlink and put into spectator mode')
+    sendMessage(client, '$view    Connect into the view off the person currently connected')
+    sendMessage(client, '$unview    Disconnect from the view')
+    sendMessage(client, '$tp    Tp the spectator to the current proxy')
+    sendMessage(client, '$help    This')
+  }
+
   genToServerMiddleware(client: ServerClient) {
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
@@ -250,6 +262,7 @@ export class InspectorProxy extends EventEmitter {
         // console.info('Client chat')
         this.emit('clientChatRaw', pclient, data.message)
         if ((data.message as string).startsWith('$')) { // command
+          canceler() // Cancel everything that starts with $
           const cmd = (data.message as string).trim().substring(1) // remove $
           if (cmd === 'link') { // link command, replace the bot on the server
             if (pclient === this.conn.writingClient) {
@@ -257,6 +270,7 @@ export class InspectorProxy extends EventEmitter {
               sendMessage(pclient, 'Already in control cannot link!')
               return
             }
+            this.fakeSpectator?.revertPov(pclient)
             if (this.conn.writingClient) {
               const mes = `Cannot link. User ${this.conn.writingClient.username} is currently linked.`
               console.info(mes)
@@ -268,7 +282,6 @@ export class InspectorProxy extends EventEmitter {
             // this.fakePlayer?.deSpawn(client)
             this.fakePlayer?.unregister(client)
             this.fakeSpectator?.revertToNormal(client)
-            canceler()
             setTimeout().then(() => {
               if (!this.conn) return
               this.conn.bot.proxy.emitter.emit('proxyBotLostControl')
@@ -285,12 +298,42 @@ export class InspectorProxy extends EventEmitter {
             // this.fakePlayer?.spawn(client)
             this.fakePlayer?.register(client)
             this.fakeSpectator?.makeSpectator(client)
-            canceler()
+            sendMessage(pclient, 'Proxy >> Unlinking')
             setTimeout().then(() => {
               if (!this.conn) return
               this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
             })
-            return
+          } else if (cmd === 'view') {
+            if (pclient === this.conn.writingClient) {
+              sendMessage(pclient, 'Proxy >> Cannot get into the view. You are controlling the bot')
+              return
+            }
+            const res = this.fakeSpectator?.makeViewingBotPov(pclient)
+            if (res) {
+              sendMessage(pclient, 'Proxy >> Connecting to view. Type $unview to exit')
+            }
+          } else if (cmd === 'unview') {
+            if (pclient === this.conn.writingClient) {
+              sendMessage(pclient, 'Proxy >> Cannot get out off the view. You are controlling the bot')
+              return
+            }
+            const res = this.fakeSpectator?.revertPov(pclient)
+            if (res) {
+              sendMessage(pclient, 'Proxy >> Disconnecting from view. Type $view to connect')
+            }
+          } else if (cmd.startsWith('c')) {
+            this.conn.receivingClients.forEach(c => {
+              sendMessage(c, `Proxy >> [${pclient.username}] ${cmd.substring(2)}`)
+            })
+          } else if (cmd === 'tp') {
+            if (pclient === this.conn?.writingClient) {
+              sendMessage(pclient, `Proxy >> Cannot tp. You are controlling the bot.`)
+              return
+            }
+            this.fakeSpectator?.revertPov(pclient)
+            this.fakeSpectator?.tpToOrigin(pclient)
+          } else {
+            this.printHelp(pclient)
           }
         } else { // Normal chat messages
           console.info(`User ${client.username} chat: ${data.message}`)

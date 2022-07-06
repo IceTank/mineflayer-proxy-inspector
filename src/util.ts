@@ -1,6 +1,6 @@
 import { Vec3 } from "vec3";
 import { Client, ServerClient } from "minecraft-protocol";
-import { Bot as VanillaBot } from "mineflayer";
+import { Bot as VanillaBot, GameState } from "mineflayer";
 import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
@@ -357,6 +357,7 @@ export class FakePlayer {
 
 export class FakeSpectator {
   bot: Bot
+  clientsInCamera: Record<string, { status: boolean, cleanup: () => void }> = {}
   constructor(bot: Bot) {
     this.bot = bot
   }
@@ -391,5 +392,71 @@ export class FakeSpectator {
       reason: 3, // https://wiki.vg/index.php?title=Protocol&oldid=14204#Change_Game_State
       gameMode: FakePlayer.gameModeToNotchian(this.bot.game.gameMode)
     })
+  }
+  tpToOrigin(client: Client | ServerClient) {
+    client.write('position', {
+      ...(this.bot.entity.position)
+    })
+  }
+  makeViewingBotPov(client: Client | ServerClient) {
+    if (this.clientsInCamera[client.uuid]) {
+      if (this.clientsInCamera[client.uuid].status) {
+        console.warn('Already in the camera', client.username)
+        return false
+      }
+    }
+    client.write('camera', {
+      cameraId: FakePlayer.fakePlayerId
+    })
+    const updatePos = () => {
+      client.write('position', {
+        ...this.bot.entity.position,
+        yaw: 180 - (this.bot.entity.yaw * 180) / Math.PI,
+        pitch: -(this.bot.entity.pitch * 180) / Math.PI,
+        onGround: this.bot.entity.onGround
+      })
+    }
+    updatePos()
+    const onMove = () => updatePos()
+    const cleanup = () => {
+      this.bot.removeListener('move', onMove)
+      this.bot.removeListener('end', cleanup)
+      client.removeListener('end', cleanup)
+    }
+    this.bot.on('move', onMove)
+    this.bot.once('end', cleanup)
+    client.once('end', cleanup)
+    this.clientsInCamera[client.uuid] = { status: true, cleanup: cleanup }
+    return true
+  }
+  revertPov(client: Client | ServerClient) {
+    if (this.clientsInCamera[client.uuid]) {
+      if (!this.clientsInCamera[client.uuid].status) {
+        console.warn('Not in camera cannot revert', client.username)
+        return false
+      }
+    } else {
+      console.warn('Not in camera cannot revert', client.username)
+      return false
+    }
+    client.write('camera', {
+      cameraId: this.bot.entity.id
+    })
+    this.clientsInCamera[client.uuid].cleanup()
+    this.clientsInCamera[client.uuid].status = false
+    this.clientsInCamera[client.uuid].cleanup = () => {}
+    return true
+  }
+}
+
+function gamemodeToNumber(str: GameState["gameMode"]) {
+  if (str === 'survival') {
+    return 0
+  } else if (str === 'creative') {
+    return 1
+  } else if (str === 'adventure') {
+    return 2
+  } else if (str === 'spectator') {
+    return 3
   }
 }
