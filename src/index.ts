@@ -277,6 +277,7 @@ export class InspectorProxy extends EventEmitter {
               sendMessage(pclient, mes)
               return
             }
+            sendMessage(client, 'Proxy >> Linking')
             this.link(pclient as unknown as ServerClient)
             this.conn.bot.proxy.botIsControlling = !this.conn.writingClient
             // this.fakePlayer?.deSpawn(client)
