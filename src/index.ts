@@ -344,6 +344,12 @@ export class InspectorProxy extends EventEmitter {
           canceler(true)
         }
         return
+      } else if (info.meta.name === 'use_entity') {
+        if (this.fakeSpectator?.clientsInCamera[client.uuid] && this.fakeSpectator?.clientsInCamera[client.uuid].status) {
+          if (data.mouse === 0 || data.mouse === 1) {
+            this.fakeSpectator.revertPov(pclient)
+          }
+        }
       }
     }
 
