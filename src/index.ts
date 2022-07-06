@@ -247,7 +247,7 @@ export class InspectorProxy extends EventEmitter {
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
       if (info.meta.name === 'chat') {
-        console.info('Client chat')
+        // console.info('Client chat')
         this.emit('clientChatRaw', pclient, data.message)
         if ((data.message as string).startsWith('$')) { // command
           const cmd = (data.message as string).trim().substring(1) // remove $
@@ -293,7 +293,8 @@ export class InspectorProxy extends EventEmitter {
             return
           }
         } else { // Normal chat messages
-          console.info('None command parse through:' + data.message)
+          console.info(`User ${client.username} chat: ${data.message}`)
+          data.message = data.message.substring(0, 250)
           this.emit('clientChat', pclient, data.message)
           update()
           canceler(true)
