@@ -153,6 +153,24 @@ export class InspectorProxy extends EventEmitter {
     this.conn?.sendPackets(client as unknown as Client)
   }
 
+  makeViewFakePlayer(client: ServerClient | Client) {
+    if (!this.conn) return false
+    if (client === this.conn.writingClient) {
+      sendMessage(client, 'Proxy >> Cannot get into the view. You are controlling the bot')
+      return false
+    }
+    return this.fakeSpectator?.makeViewingBotPov(client)
+  }
+
+  makeViewNormal(client: ServerClient | Client) {
+    if (!this.conn) return false
+    if (client === this.conn.writingClient) {
+      sendMessage(client, 'Proxy >> Cannot get out off the view. You are controlling the bot')
+      return false
+    }
+    return this.fakeSpectator?.revertPov(client)
+  }
+
   private startServer() {
     const motd = this.proxyOptions.motd ?? this.conn === undefined ? 'waiting for connections' : 'logged in with ' + this.conn.bot.username
     this.server = createServer({
@@ -314,20 +332,12 @@ export class InspectorProxy extends EventEmitter {
               this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
             })
           } else if (cmd === 'view') {
-            if (pclient === this.conn.writingClient) {
-              sendMessage(pclient, 'Proxy >> Cannot get into the view. You are controlling the bot')
-              return
-            }
-            const res = this.fakeSpectator?.makeViewingBotPov(pclient)
+            const res = this.makeViewFakePlayer(pclient)
             if (res) {
               sendMessage(pclient, 'Proxy >> Connecting to view. Type $unview to exit')
             }
           } else if (cmd === 'unview') {
-            if (pclient === this.conn.writingClient) {
-              sendMessage(pclient, 'Proxy >> Cannot get out off the view. You are controlling the bot')
-              return
-            }
-            const res = this.fakeSpectator?.revertPov(pclient)
+            const res = this.makeViewNormal(pclient)
             if (res) {
               sendMessage(pclient, 'Proxy >> Disconnecting from view. Type $view to connect')
             }
