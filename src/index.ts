@@ -58,6 +58,7 @@ export class InspectorProxy extends EventEmitter {
   fakeSpectator?: FakeSpectator
   blockedPacketsWhenNotInControl: string[]
   commandsDisabled: boolean
+  proxyChatPrefix: string = '§6Proxy >> §r'
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
@@ -118,7 +119,7 @@ export class InspectorProxy extends EventEmitter {
   broadcastMessage(message: string) {
     if (!this.server?.clients) return
     Object.values(this.server.clients).forEach(c => {
-      sendMessage(c, message)
+      this.message(c, message)
     })
   }
 
@@ -141,7 +142,7 @@ export class InspectorProxy extends EventEmitter {
     } else {
       const mes = `Cannot link. User ${this.conn.writingClient.username} is linked.`
       console.warn(mes)
-      sendMessage(client, mes)
+      this.message(client, mes)
     }
   }
 
@@ -156,7 +157,7 @@ export class InspectorProxy extends EventEmitter {
   makeViewFakePlayer(client: ServerClient | Client) {
     if (!this.conn) return false
     if (client === this.conn.writingClient) {
-      sendMessage(client, 'Proxy >> Cannot get into the view. You are controlling the bot')
+      this.message(client, `Cannot get into the view. You are controlling the bot`)
       return false
     }
     return this.fakeSpectator?.makeViewingBotPov(client)
@@ -165,7 +166,7 @@ export class InspectorProxy extends EventEmitter {
   makeViewNormal(client: ServerClient | Client) {
     if (!this.conn) return false
     if (client === this.conn.writingClient) {
-      sendMessage(client, 'Proxy >> Cannot get out off the view. You are controlling the bot')
+      this.message(client, 'Cannot get out off the view. You are controlling the bot')
       return false
     }
     return this.fakeSpectator?.revertPov(client)
@@ -242,7 +243,7 @@ export class InspectorProxy extends EventEmitter {
     this.attach(client)
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.writingClient
-    this.broadcastMessage(`Proxy >> User ${client.username} logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
+    this.broadcastMessage(`${this.proxyChatPrefix} User ${client.username} logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
     this.printHelp(client)
 
     if (!connect) {
@@ -258,7 +259,7 @@ export class InspectorProxy extends EventEmitter {
     client.once('end', () => {
       this.fakePlayer?.unregister(client)
       this.emit('clientDisconnect', client)
-      this.broadcastMessage(`Proxy >> User ${client.username} disconnected`)
+      this.broadcastMessage(`${this.proxyChatPrefix} User ${client.username} disconnected`)
       console.info(`User ${client.username} logged off`, new Date())
       if (this.proxyOptions.stopOnLogoff) {
         if (this.server && Object.values(this.server?.clients).length === 0) {
@@ -271,15 +272,28 @@ export class InspectorProxy extends EventEmitter {
     this.emit('clientConnect', client)
   }
 
+  message(client: Client | ServerClient, message: string, prefix?: boolean, allowFormatting?: boolean) {
+    if (!allowFormatting) {
+      const r = /§./
+      while (r.test(message)) {
+        message = message.replace(r, '')
+      }
+    }
+    if (prefix) {
+      message = `${this.proxyChatPrefix} ${message}`
+    }
+    sendMessage(client, message)
+  }
+
   printHelp(client: Client | ServerClient) {
-    sendMessage(client, 'Available commands:')
-    sendMessage(client, '$c [Message]    Send a message to all other connected clients')
-    sendMessage(client, '$link    Links to the proxy if no one else is linked')
-    sendMessage(client, '$unlink    Unlink and put into spectator mode')
-    sendMessage(client, '$view    Connect into the view off the person currently connected')
-    sendMessage(client, '$unview    Disconnect from the view')
-    sendMessage(client, '$tp    Tp the spectator to the current proxy')
-    sendMessage(client, '$help    This')
+    this.message(client, 'Available commands:')
+    this.message(client, '$c [Message]    Send a message to all other connected clients')
+    this.message(client, '$link    Links to the proxy if no one else is linked')
+    this.message(client, '$unlink    Unlink and put into spectator mode')
+    this.message(client, '$view    Connect into the view off the person currently connected')
+    this.message(client, '$unview    Disconnect from the view')
+    this.message(client, '$tp    Tp the spectator to the current proxy')
+    this.message(client, '$help    This')
   }
 
   genToServerMiddleware(client: ServerClient) {
@@ -294,17 +308,17 @@ export class InspectorProxy extends EventEmitter {
           if (cmd === 'link') { // link command, replace the bot on the server
             if (pclient === this.conn.writingClient) {
               console.warn('Already in control cannot link!')
-              sendMessage(pclient, 'Already in control cannot link!')
+              this.message(pclient, 'Already in control cannot link!')
               return
             }
             this.fakeSpectator?.revertPov(pclient)
             if (this.conn.writingClient) {
               const mes = `Cannot link. User ${this.conn.writingClient.username} is currently linked.`
               console.info(mes)
-              sendMessage(pclient, mes)
+              this.message(pclient, mes)
               return
             }
-            sendMessage(client, 'Proxy >> Linking')
+            this.message(client, 'Linking')
             this.link(pclient as unknown as ServerClient)
             this.conn.bot.proxy.botIsControlling = !this.conn.writingClient
             // this.fakePlayer?.deSpawn(client)
@@ -318,7 +332,7 @@ export class InspectorProxy extends EventEmitter {
           } else if (cmd === 'unlink') { // unlink command, give control back to the bot
             if (pclient !== this.conn.writingClient) {
               console.warn('Cannot unlink as not in control!')
-              sendMessage(pclient, 'Cannot unlink as not in control!')
+              this.message(pclient, 'Cannot unlink as not in control!')
               return
             }
             this.unlink()
@@ -326,7 +340,7 @@ export class InspectorProxy extends EventEmitter {
             // this.fakePlayer?.spawn(client)
             this.fakePlayer?.register(client)
             this.fakeSpectator?.makeSpectator(client)
-            sendMessage(pclient, 'Proxy >> Unlinking')
+            this.message(pclient, 'Unlinking')
             setTimeout().then(() => {
               if (!this.conn) return
               this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
@@ -334,20 +348,18 @@ export class InspectorProxy extends EventEmitter {
           } else if (cmd === 'view') {
             const res = this.makeViewFakePlayer(pclient)
             if (res) {
-              sendMessage(pclient, 'Proxy >> Connecting to view. Type $unview to exit')
+              this.message(pclient, 'Connecting to view. Type $unview to exit')
             }
           } else if (cmd === 'unview') {
             const res = this.makeViewNormal(pclient)
             if (res) {
-              sendMessage(pclient, 'Proxy >> Disconnecting from view. Type $view to connect')
+              this.message(pclient, 'Disconnecting from view. Type $view to connect')
             }
           } else if (cmd.startsWith('c')) {
-            this.conn.receivingClients.forEach(c => {
-              sendMessage(c, `Proxy >> [${pclient.username}] ${cmd.substring(2)}`)
-            })
+            this.broadcastMessage(`[${pclient.username}] ${cmd.substring(2)}`)
           } else if (cmd === 'tp') {
             if (pclient === this.conn?.writingClient) {
-              sendMessage(pclient, `Proxy >> Cannot tp. You are controlling the bot.`)
+              this.message(pclient, `Cannot tp. You are controlling the bot.`)
               return
             }
             this.fakeSpectator?.revertPov(pclient)
