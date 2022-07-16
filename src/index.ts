@@ -16,9 +16,12 @@ export interface ProxyOptions {
     allowList?: string[]
     kickMessage?: string
   },
-  linkOnConnect?: boolean,
-  startOnLogin?: boolean,
+  linkOnConnect?: boolean
+  startOnLogin?: boolean
   stopOnLogoff?: boolean
+  toClientMiddlewares?: PacketMiddleware[]
+  toServerMiddlewares?: PacketMiddleware[]
+  disabledCommands?: boolean
 }
 
 declare module 'mineflayer' {
@@ -54,6 +57,7 @@ export class InspectorProxy extends EventEmitter {
   fakePlayer?: FakePlayer
   fakeSpectator?: FakeSpectator
   blockedPacketsWhenNotInControl: string[]
+  commandsDisabled: boolean
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
@@ -64,6 +68,7 @@ export class InspectorProxy extends EventEmitter {
     if (!this.proxyOptions.startOnLogin) {
       this.start()
     }
+    this.commandsDisabled = this.proxyOptions.disabledCommands ?? false
     this.startServer()
   }
 
@@ -82,7 +87,10 @@ export class InspectorProxy extends EventEmitter {
       console.warn('Already running not starting')
       return
     }
-    this.conn = new Conn(this.options)
+    this.conn = new Conn(this.options, {
+      toClientMiddleware: this.proxyOptions.toClientMiddlewares,
+      toServerMiddleware: this.proxyOptions.toServerMiddlewares
+    })
     this.registerEvents()
     await once(this.conn.bot, 'login')
     await setTimeout(1000)
@@ -151,7 +159,8 @@ export class InspectorProxy extends EventEmitter {
       motd: motd,
       'online-mode': this.proxyOptions.security?.onlineMode ?? false,
       port: this.proxyOptions.port ?? 25566,
-      version: '1.12.2'
+      version: '1.12.2',
+      hideErrors: true
     })
 
     this.server.on('listening', () => {
@@ -258,7 +267,7 @@ export class InspectorProxy extends EventEmitter {
   genToServerMiddleware(client: ServerClient) {
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
-      if (info.meta.name === 'chat') {
+      if (info.meta.name === 'chat' && !this.commandsDisabled) {
         // console.info('Client chat')
         this.emit('clientChatRaw', pclient, data.message)
         if ((data.message as string).startsWith('$')) { // command
