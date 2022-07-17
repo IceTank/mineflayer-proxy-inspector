@@ -56,6 +56,8 @@ export class FakePlayer {
   listenerForceMove: () => void = () => {}
   listenerPhysics: () => void = () => {}
   listenerInventory: () => void = () => {}
+  listenerWorldLeave: () => void = () => {}
+  listenerWorldJoin: () => void = () => {}
   pItem: typeof ItemType
   connectedClients: ServerClient[]
   private isSpawnedMap: Record<string, boolean> = {}
@@ -231,6 +233,25 @@ export class FakePlayer {
         this.updateEquipment(c)
       })
     }
+    this.listenerWorldLeave = () => {
+      const timeout = setTimeout(() => {
+        this.bot._client.off('position', this.listenerWorldJoin)
+      }, 5000)
+      this.bot._client.once('position', () => {
+        clearTimeout(timeout)
+        this.listenerWorldJoin()
+      })
+      this.connectedClients.forEach(c => {
+        if (!this.isSpawnedMap[c.uuid]) return
+        this.writeDestroyEntity(c)
+      })
+    }
+    this.listenerWorldJoin = () => {
+      this.connectedClients.forEach(c => {
+        if (!this.isSpawnedMap[c.uuid]) return
+        this.writePlayerEntity(c)
+      })
+    }
     this.bot.on('move', this.listenerMove)
     // setInterval(this.listenerMove.bind(this), 50)
     this.bot.on('forcedMove', this.listenerForceMove)
@@ -239,6 +260,7 @@ export class FakePlayer {
     this.bot._client.on('mcproxy:heldItemSlotUpdate', () => {
       if (this.listenerInventory) this.listenerInventory()
     })
+    this.bot.on('respawn', this.listenerWorldLeave)
   }
 
   register(client: ServerClient) {
@@ -254,12 +276,13 @@ export class FakePlayer {
   }
 
   destroy() {
-    if (this.listenerMove) this.bot.removeListener('move', this.listenerMove)
-    if (this.listenerForceMove) this.bot.removeListener('forcedMove', this.listenerForceMove)
+    this.bot.removeListener('move', this.listenerMove)
+    this.bot.removeListener('forcedMove', this.listenerForceMove)
     if (this.listenerInventory) {
       // @ts-ignore
       this.bot.inventory.removeListener('updateSlot', this.listenerInventory)
     }
+    this.bot.removeListener('respawn', this.listenerWorldLeave)
   }
 
   async writePlayerInfo(client: ServerClient) {
@@ -331,7 +354,7 @@ export class FakePlayer {
     }
   }
 
-  writePlayerEntity(client: ServerClient) {
+  private writePlayerEntity(client: ServerClient) {
     client.write('named_entity_spawn', {
       entityId: FakePlayer.fakePlayerId,
       playerUUID: this.uuid,
@@ -370,22 +393,24 @@ export class FakePlayer {
     }).catch(console.error)
   }
 
+  private writeDestroyEntity(client: ServerClient) {
+    client.write('entity_destroy', {
+      entityIds: [ FakePlayer.fakePlayerId ]
+    })
+  }
+
   private deSpawn(client: ServerClient) {
     // if (!this.isSpawned) throw new Error('Nothing to de-spawn player not spawned')
     if (client.uuid in this.isSpawnedMap) {
       if (!this.isSpawnedMap[client.uuid]) console.warn('Nothing to de-spawn player not spawned')
     }
-    client.write('entity_destroy', {
-      entityIds: [ FakePlayer.fakePlayerId ]
-    })
+    this.writeDestroyEntity(client)
     client.write('player_info', {
       action: 4,
       data: [{
         UUID: this.uuid
       }]
     })
-    // this.destroy()
-    // this.isSpawned = false
     this.isSpawnedMap[client.uuid] = false
   }
 }
