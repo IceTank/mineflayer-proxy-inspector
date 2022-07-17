@@ -58,7 +58,7 @@ export class InspectorProxy extends EventEmitter {
   fakeSpectator?: FakeSpectator
   blockedPacketsWhenNotInControl: string[]
   commandsDisabled: boolean
-  proxyChatPrefix: string = '§6Proxy >> §r'
+  proxyChatPrefix: string = '§6Proxy >>§r'
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
@@ -243,7 +243,7 @@ export class InspectorProxy extends EventEmitter {
     this.attach(client)
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.writingClient
-    this.broadcastMessage(`${this.proxyChatPrefix} User ${client.username} logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
+    this.broadcastMessage(`User ${client.username} logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
     this.printHelp(client)
 
     if (!connect) {
@@ -272,8 +272,8 @@ export class InspectorProxy extends EventEmitter {
     this.emit('clientConnect', client)
   }
 
-  message(client: Client | ServerClient, message: string, prefix?: boolean, allowFormatting?: boolean) {
-    if (!allowFormatting) {
+  message(client: Client | ServerClient, message: string, prefix: boolean = true, allowFormatting: boolean = true) {
+    if (allowFormatting) {
       const r = /§./
       while (r.test(message)) {
         message = message.replace(r, '')
