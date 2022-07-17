@@ -395,11 +395,22 @@ export class InspectorProxy extends EventEmitter {
       if (this.botIsInControl()) {
         if (this.blockedPacketsWhenNotInControl.includes(info.meta.name)) return canceler()
       }
-      if (info.meta.name === 'collect' && this.botIsInControl()) {
-        if (data.collectorEntityId === this.conn.bot.entity.id) {
-          data.collectorEntityId = FakePlayer.fakePlayerId
-          update()
-        }
+    }
+
+    const inspector_toClientFakePlayerSync: PacketMiddleware = (info, pclient, data, canceler, update) => {
+      if (canceler.isCanceled) return
+      if (pclient === this.conn?.writingClient) return
+      if (this.conn === undefined) return
+      const botId = this.conn.bot.entity.id
+      if (info.meta.name === 'collect' && data.collectorEntityId === botId) {
+        data.collectorEntityId = FakePlayer.fakePlayerId
+        update()
+      } else if (info.meta.name === 'entity_metadata' && data.entityId === botId) {
+        data.entityId = FakePlayer.fakePlayerId
+        update()
+      } else if (info.meta.name === 'entity_update_attributes' && data.entityId === botId) {
+        data.entityId = FakePlayer.fakePlayerId
+        update()
       }
     }
   
@@ -412,7 +423,7 @@ export class InspectorProxy extends EventEmitter {
       }
     }
 
-    return [inspector_toClientMiddleware, inspector_toClientMiddlewareRecipesFix]
+    return [inspector_toClientMiddleware, inspector_toClientFakePlayerSync, inspector_toClientMiddlewareRecipesFix]
   }
 
   setMotd(line1: string, line2: string = "") {
