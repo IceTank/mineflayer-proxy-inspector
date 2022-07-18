@@ -140,7 +140,7 @@ export class InspectorProxy extends EventEmitter {
       console.info('Linking', this.proxyOptions.linkOnConnect)
       this.conn.link(client as unknown as Client)
     } else {
-      const mes = `Cannot link. User ${this.conn.writingClient.username} is linked.`
+      const mes = `Cannot link. User §3${this.conn.writingClient.username}§r is linked.`
       console.warn(mes)
       this.message(client, mes)
     }
@@ -243,7 +243,7 @@ export class InspectorProxy extends EventEmitter {
     this.attach(client)
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.writingClient
-    this.broadcastMessage(`User ${client.username} logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
+    this.broadcastMessage(`User §3${client.username}§r logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
     this.printHelp(client)
 
     if (!connect) {
@@ -259,7 +259,7 @@ export class InspectorProxy extends EventEmitter {
     client.once('end', () => {
       this.fakePlayer?.unregister(client)
       this.emit('clientDisconnect', client)
-      this.broadcastMessage(`${this.proxyChatPrefix} User ${client.username} disconnected`)
+      this.broadcastMessage(`${this.proxyChatPrefix} User §3${client.username}§r disconnected`)
       console.info(`User ${client.username} logged off`, new Date())
       if (this.proxyOptions.stopOnLogoff) {
         if (this.server && Object.values(this.server?.clients).length === 0) {
@@ -313,7 +313,7 @@ export class InspectorProxy extends EventEmitter {
             }
             this.fakeSpectator?.revertPov(pclient)
             if (this.conn.writingClient) {
-              const mes = `Cannot link. User ${this.conn.writingClient.username} is currently linked.`
+              const mes = `Cannot link. User §3${this.conn.writingClient.username}§r is currently linked.`
               console.info(mes)
               this.message(pclient, mes)
               return
