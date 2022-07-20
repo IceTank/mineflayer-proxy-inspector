@@ -331,6 +331,7 @@ export class FakePlayer {
         slot: 0,
         item: mainHand
       })
+      this.fakePlayerEntity.mainHand = mainHand
     }
     // Off-Hand
     if (!NotchItemEqual(offHand, this.fakePlayerEntity.offHand)) {
@@ -339,6 +340,7 @@ export class FakePlayer {
         slot: 1,
         item: offHand
       })
+      this.fakePlayerEntity.offHand = offHand
     }
     // Armor
     const equipmentMap = [5, 4, 3, 2]
@@ -351,6 +353,7 @@ export class FakePlayer {
         slot: equipmentMap[i],
         item: armorItem
       })
+      this.fakePlayerEntity.armor[i] = armorItem
     }
   }
 

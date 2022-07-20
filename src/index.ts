@@ -90,8 +90,8 @@ export class InspectorProxy extends EventEmitter {
       return
     }
     this.conn = new Conn(this.options, {
-      toClientMiddleware: this.proxyOptions.toClientMiddlewares,
-      toServerMiddleware: this.proxyOptions.toServerMiddlewares
+      toClientMiddleware: [...this.genToClientMiddleware(), ...(this.proxyOptions.toClientMiddlewares || [])],
+      toServerMiddleware: [...this.genToServerMiddleware(), ...(this.proxyOptions.toServerMiddlewares || [])]
     })
     this.registerEvents()
     setTimeout().then(() => {
@@ -125,8 +125,8 @@ export class InspectorProxy extends EventEmitter {
 
   attach(client: ServerClient) {
     if (!this.conn) return
-    const toClientMiddleware = this.genToClientMiddleware(client)
-    const toServerMiddleware = this.genToServerMiddleware(client)
+    const toClientMiddleware = this.genToClientMiddleware()
+    const toServerMiddleware = this.genToServerMiddleware()
 
     this.conn.attach(client as unknown as Client, {
       toClientMiddleware: toClientMiddleware,
@@ -134,11 +134,28 @@ export class InspectorProxy extends EventEmitter {
     })
   }
 
-  link(client: ServerClient) {
+  link(client: ServerClient | Client) {
     if (!this.conn) return
+    if (client === this.conn.writingClient) {
+      console.warn('Already in control cannot link!')
+      this.message(client, 'Already in control cannot link!')
+      return
+    }
+    
     if (!this.conn.writingClient) {
       console.info('Linking', this.proxyOptions.linkOnConnect)
+      this.message(client, 'Linking')
       this.conn.link(client as unknown as Client)
+      this.conn.bot.proxy.botIsControlling = !this.conn.writingClient
+
+      this.fakeSpectator?.revertPov(client)
+      this.fakePlayer?.unregister(client as unknown as ServerClient)
+      this.fakeSpectator?.revertToNormal(client as unknown as ServerClient)
+
+      setTimeout().then(() => {
+        if (!this.conn) return
+        this.conn.bot.proxy.emitter.emit('proxyBotLostControl')
+      })
     } else {
       const mes = `Cannot link. User §3${this.conn.writingClient.username}§r is linked.`
       console.warn(mes)
@@ -146,8 +163,22 @@ export class InspectorProxy extends EventEmitter {
     }
   }
 
-  unlink() {
+  unlink(client: Client | ServerClient) {
+    if (!this.conn) return
+    if (client !== this.conn.writingClient) {
+      console.warn('Cannot unlink as not in control!')
+      this.message(client, 'Cannot unlink as not in control!')
+      return
+    }
     this.conn?.unlink()
+    this.conn.bot.proxy.botIsControlling = true
+    this.fakePlayer?.register(client as unknown as ServerClient)
+    this.fakeSpectator?.makeSpectator(client as unknown as ServerClient)
+    this.message(client, 'Unlinking')
+    setTimeout().then(() => {
+      if (!this.conn) return
+      this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
+    })
   }
 
   sendPackets(client: ServerClient) {
@@ -296,7 +327,7 @@ export class InspectorProxy extends EventEmitter {
     this.message(client, '$help    This')
   }
 
-  genToServerMiddleware(client: ServerClient) {
+  genToServerMiddleware() {
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
       if (info.meta.name === 'chat' && !this.commandsDisabled) {
@@ -306,45 +337,10 @@ export class InspectorProxy extends EventEmitter {
           canceler() // Cancel everything that starts with $
           const cmd = (data.message as string).trim().substring(1) // remove $
           if (cmd === 'link') { // link command, replace the bot on the server
-            if (pclient === this.conn.writingClient) {
-              console.warn('Already in control cannot link!')
-              this.message(pclient, 'Already in control cannot link!')
-              return
-            }
-            this.fakeSpectator?.revertPov(pclient)
-            if (this.conn.writingClient) {
-              const mes = `Cannot link. User §3${this.conn.writingClient.username}§r is currently linked.`
-              console.info(mes)
-              this.message(pclient, mes)
-              return
-            }
-            this.message(client, 'Linking')
             this.link(pclient as unknown as ServerClient)
-            this.conn.bot.proxy.botIsControlling = !this.conn.writingClient
-            // this.fakePlayer?.deSpawn(client)
-            this.fakePlayer?.unregister(client)
-            this.fakeSpectator?.revertToNormal(client)
-            setTimeout().then(() => {
-              if (!this.conn) return
-              this.conn.bot.proxy.emitter.emit('proxyBotLostControl')
-            })
             return
           } else if (cmd === 'unlink') { // unlink command, give control back to the bot
-            if (pclient !== this.conn.writingClient) {
-              console.warn('Cannot unlink as not in control!')
-              this.message(pclient, 'Cannot unlink as not in control!')
-              return
-            }
-            this.unlink()
-            this.conn.bot.proxy.botIsControlling = true
-            // this.fakePlayer?.spawn(client)
-            this.fakePlayer?.register(client)
-            this.fakeSpectator?.makeSpectator(client)
-            this.message(pclient, 'Unlinking')
-            setTimeout().then(() => {
-              if (!this.conn) return
-              this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
-            })
+            this.unlink(pclient)
           } else if (cmd === 'view') {
             const res = this.makeViewFakePlayer(pclient)
             if (res) {
@@ -368,7 +364,7 @@ export class InspectorProxy extends EventEmitter {
             this.printHelp(pclient)
           }
         } else { // Normal chat messages
-          console.info(`User ${client.username} chat: ${data.message}`)
+          console.info(`User ${pclient.username} chat: ${data.message}`)
           data.message = data.message.substring(0, 250)
           this.emit('clientChat', pclient, data.message)
           update()
@@ -376,7 +372,7 @@ export class InspectorProxy extends EventEmitter {
         }
         return
       } else if (info.meta.name === 'use_entity') {
-        if (this.fakeSpectator?.clientsInCamera[client.uuid] && this.fakeSpectator?.clientsInCamera[client.uuid].status) {
+        if (this.fakeSpectator?.clientsInCamera[pclient.uuid] && this.fakeSpectator?.clientsInCamera[pclient.uuid].status) {
           if (data.mouse === 0 || data.mouse === 1) {
             this.fakeSpectator.revertPov(pclient)
           }
@@ -387,7 +383,7 @@ export class InspectorProxy extends EventEmitter {
     return [inspector_toServerMiddleware]
   }
 
-  genToClientMiddleware(client: ServerClient) {
+  genToClientMiddleware() {
     const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
       if (canceler.isCanceled) return
