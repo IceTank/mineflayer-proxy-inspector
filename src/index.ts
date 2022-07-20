@@ -46,6 +46,7 @@ export interface InspectorProxy {
   /** All chat messages including proxy commands */
   on(event: 'clientChatRaw', listener: (client: Client, message: string) => void): this
   on(event: 'botStart', listener: (conn: Conn) => void): this
+  on(event: 'botReady', listener: (conn: Conn) => void): this
   on(event: 'serverStart', listener: () => void): this
 }
 
@@ -93,13 +94,12 @@ export class InspectorProxy extends EventEmitter {
       toServerMiddleware: this.proxyOptions.toServerMiddlewares
     })
     this.registerEvents()
+    setTimeout().then(() => {
+      this.emit('botReady', this.conn)
+    })
     await once(this.conn.bot, 'login')
     await setTimeout(1000)
     this.emit('botStart', this.conn)
-    if (this.server) {
-      const motd = this.proxyOptions.motd ?? 'logged in with ' + this.conn.bot.username
-      this.server.motd = motd
-    }
   }
 
   stop() {
@@ -173,7 +173,7 @@ export class InspectorProxy extends EventEmitter {
   }
 
   private startServer() {
-    const motd = this.proxyOptions.motd ?? this.conn === undefined ? 'waiting for connections' : 'logged in with ' + this.conn.bot.username
+    const motd = this.proxyOptions.motd ?? this.conn === undefined ? '§6waiting for connections' : 'logged in with §3' + this.conn.bot.username
     this.server = createServer({
       motd: motd,
       'online-mode': this.proxyOptions.security?.onlineMode ?? false,
