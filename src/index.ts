@@ -125,13 +125,10 @@ export class InspectorProxy extends EventEmitter {
 
   attach(client: ServerClient) {
     if (!this.conn) return
-    const toClientMiddleware = this.genToClientMiddleware()
-    const toServerMiddleware = this.genToServerMiddleware()
+    // const toClientMiddleware = this.genToClientMiddleware()
+    // const toServerMiddleware = this.genToServerMiddleware()
 
-    this.conn.attach(client as unknown as Client, {
-      toClientMiddleware: toClientMiddleware,
-      toServerMiddleware: toServerMiddleware
-    })
+    this.conn.attach(client as unknown as Client)
   }
 
   link(client: ServerClient | Client) {
