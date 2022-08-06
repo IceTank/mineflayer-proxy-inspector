@@ -405,7 +405,7 @@ export class FakePlayer {
   private deSpawn(client: ServerClient) {
     // if (!this.isSpawned) throw new Error('Nothing to de-spawn player not spawned')
     if (client.uuid in this.isSpawnedMap) {
-      if (!this.isSpawnedMap[client.uuid]) console.warn('Nothing to de-spawn player not spawned')
+      // if (!this.isSpawnedMap[client.uuid]) console.warn('Nothing to de-spawn player not spawned')
     }
     this.writeDestroyEntity(client)
     client.write('player_info', {
@@ -495,11 +495,11 @@ export class FakeSpectator {
   revertPov(client: Client | ServerClient) {
     if (this.clientsInCamera[client.uuid]) {
       if (!this.clientsInCamera[client.uuid].status) {
-        console.warn('Not in camera cannot revert', client.username)
+        // console.warn('Not in camera cannot revert', client.username)
         return false
       }
     } else {
-      console.warn('Not in camera cannot revert', client.username)
+      // console.warn('Not in camera cannot revert', client.username)
       return false
     }
     client.write('camera', {
