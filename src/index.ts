@@ -5,6 +5,7 @@ import { FakeSpectator, FakePlayer, sendMessage } from "./util";
 import { BotOptions } from "mineflayer";
 import EventEmitter, { once } from "events";
 import { setTimeout } from "timers/promises";
+import type { ChatMessage } from 'prismarine-chat'
 
 export { sendMessage }
 
@@ -16,9 +17,26 @@ export interface ProxyOptions {
     allowList?: string[]
     kickMessage?: string
   },
+  /** Link a connecting client as soon as he joins if no one else is currently controlling the proxy. Default: true */
   linkOnConnect?: boolean
+  /** @deprecated use botStartOnLogin instead */
   startOnLogin?: boolean
+  /** @deprecated use botStopOnLogoff instead */
   stopOnLogoff?: boolean
+
+  /** Automatically join the server. If false bot can be started with `{Proxy}.startBot()`. Default: true */
+  botAutoStart?: boolean
+  /** Stop the bot when the last person leaves the server. Default: true */
+  botStopOnLogoff?: boolean
+  /** Automatically start the server. If false the server can be started with `{Proxy}.startServer()` Default: true */
+  serverAutoStart?: boolean
+  /** Stop the server when the bot stops. Default: false */
+  serverStopOnBotStop?: boolean
+  /** Auto start the bot when someone joins the server when the bot is not running. Default: true */
+  autoStartBotOnServerLogin?: boolean
+
+  logPlayerJoinLeave?: boolean
+
   toClientMiddlewares?: PacketMiddleware[]
   toServerMiddlewares?: PacketMiddleware[]
   disabledCommands?: boolean
@@ -58,7 +76,6 @@ export class InspectorProxy extends EventEmitter {
   fakePlayer?: FakePlayer
   fakeSpectator?: FakeSpectator
   blockedPacketsWhenNotInControl: string[]
-  commandsDisabled: boolean
   proxyChatPrefix: string = '§6Proxy >>§r'
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
@@ -67,11 +84,26 @@ export class InspectorProxy extends EventEmitter {
     this.proxyOptions = proxyOptions
     this.server = undefined
     this.blockedPacketsWhenNotInControl = ['abilities', 'position']
-    if (!this.proxyOptions.startOnLogin) {
-      this.start()
+
+    this.proxyOptions.botAutoStart ??= true
+    this.proxyOptions.botStopOnLogoff ??= true
+    this.proxyOptions.serverAutoStart ??= true
+    this.proxyOptions.serverStopOnBotStop ??= false
+    this.proxyOptions.disabledCommands ??= false
+    this.proxyOptions.linkOnConnect ??= true
+    this.proxyOptions.autoStartBotOnServerLogin ??= true
+
+    this.proxyOptions.startOnLogin ??= true
+    this.proxyOptions.stopOnLogoff ??= false
+
+    this.proxyOptions.logPlayerJoinLeave ??= true
+    
+    if (this.proxyOptions.botAutoStart || !this.proxyOptions.startOnLogin) {
+      this.startBot()
     }
-    this.commandsDisabled = this.proxyOptions.disabledCommands ?? false
-    this.startServer()
+    if (this.proxyOptions.serverAutoStart) {
+      this.startServer()
+    }
   }
 
   playerInWhitelist(name: string) {
@@ -84,16 +116,24 @@ export class InspectorProxy extends EventEmitter {
     return !this.conn.writingClient
   }
 
+  /**
+   * @deprecated Use `startBot()` instead
+   */
   async start() {
+    return this.startBot()
+  }
+
+  async startBot() {
     if (this.conn) {
       console.warn('Already running not starting')
       return
     }
+    console.info('Starting bot')
     this.conn = new Conn(this.options, {
       toClientMiddleware: [...this.genToClientMiddleware(), ...(this.proxyOptions.toClientMiddlewares || [])],
       toServerMiddleware: [...this.genToServerMiddleware(), ...(this.proxyOptions.toServerMiddlewares || [])]
     })
-    this.registerEvents()
+    this.registerBotEvents()
     setTimeout().then(() => {
       this.emit('botReady', this.conn)
     })
@@ -102,18 +142,65 @@ export class InspectorProxy extends EventEmitter {
     this.emit('botStart', this.conn)
   }
 
+  /**
+   * @deprecated Use `stopBot()` or `stopServer()` instead
+   */
   stop() {
+    this.stopBot()
+  }
+
+  stopBot() {
     if (this.conn === undefined) {
       console.warn('Already stopped')
       return
     }
-    console.info('Stopping')
+    console.info('Stopping Bot')
     this.fakePlayer?.destroy()
     this.conn.disconnect()
     this.conn = undefined
     if (this.server) {
-      this.server.motd = 'Offline waiting for connections'
+      if (this.proxyOptions.autoStartBotOnServerLogin) {
+        this.server.motd = '§6Offline waiting for connections'
+      } else {
+        this.server.motd = '§6Offline'
+      }
     }
+  }
+
+  /**
+   * Stops the hosted server
+   * @returns 
+   */
+  stopServer() {
+    if (!this.server) return
+    console.info('Stopping server')
+    this.server.close()
+    this.server = undefined
+  }
+
+  startServer() {
+    if (this.server) {
+      console.warn('Already running not starting')
+      return
+    }
+    console.info('Starting server')
+    const motd = this.proxyOptions.motd ?? this.conn === undefined ? '§6Waiting for connections' : 'Logged in with §3' + this.conn.bot.username
+    this.server = createServer({
+      motd: motd,
+      'online-mode': this.proxyOptions.security?.onlineMode ?? false,
+      port: this.proxyOptions.port ?? 25566,
+      version: '1.12.2',
+      hideErrors: true
+    })
+
+    this.server.on('listening', () => {
+      this.emit('serverStart')
+      if (!this.proxyOptions.motd && this.conn?.bot && this.server) {
+        this.server.motd = 'Logged in with §3' + this.conn.bot.username
+      }
+    })
+
+    this.server.on('login', this.onClientLogin.bind(this))
   }
 
   broadcastMessage(message: string) {
@@ -140,7 +227,7 @@ export class InspectorProxy extends EventEmitter {
     }
     
     if (!this.conn.writingClient) {
-      console.info('Linking', this.proxyOptions.linkOnConnect)
+      // console.info('Linking', this.proxyOptions.linkOnConnect)
       this.message(client, 'Linking')
       this.conn.link(client as unknown as Client)
       this.conn.bot.proxy.botIsControlling = !this.conn.writingClient
@@ -200,24 +287,7 @@ export class InspectorProxy extends EventEmitter {
     return this.fakeSpectator?.revertPov(client)
   }
 
-  private startServer() {
-    const motd = this.proxyOptions.motd ?? this.conn === undefined ? '§6waiting for connections' : 'logged in with §3' + this.conn.bot.username
-    this.server = createServer({
-      motd: motd,
-      'online-mode': this.proxyOptions.security?.onlineMode ?? false,
-      port: this.proxyOptions.port ?? 25566,
-      version: '1.12.2',
-      hideErrors: true
-    })
-
-    this.server.on('listening', () => {
-      this.emit('serverStart')
-    })
-
-    this.server.on('login', this.onClientLogin.bind(this))
-  }
-
-  private registerEvents() {
+  private registerBotEvents() {
     if (!this.conn) return
     this.conn.bot.proxy = {
       botIsControlling: true,
@@ -231,27 +301,33 @@ export class InspectorProxy extends EventEmitter {
         uuid: this.conn.bot._client.uuid
       })
       this.fakeSpectator = new FakeSpectator(this.conn.bot)
-    })
-
-    this.conn.bot.on('end', () => {
-      if (this.proxyOptions.stopOnLogoff) this.stop()
-    })
-
-    this.conn.bot.once('login', () => {
-      if (!this.conn) return
-      
+      if (this.proxyOptions.serverAutoStart) {
+        if (!this.server) this.startServer()
+      }
       this.conn.bot.once('end', () => {
-        if (!this.server) return
-        // this.server.close()
         this.fakePlayer?.destroy()
       })
+      if (!this.proxyOptions.motd && this.server) {
+        this.server.motd = 'Logged in with §3' + this.conn.bot.username
+      }
+    })
+
+    this.conn.bot.once('end', () => {
+      console.info(`Bot stopped`)
+      if (this.proxyOptions.serverStopOnBotStop || this.proxyOptions.stopOnLogoff) {
+        this.stopServer()
+      }
     })
   }
 
   async onClientLogin(client: ServerClient) {
     if (!this.conn)
-    if (this.proxyOptions.startOnLogin) {
-      await this.start()
+    if (this.proxyOptions.autoStartBotOnServerLogin) {
+      await this.startBot()
+    } else {
+      client.end('Bot not started')
+      console.info(`User ${client.username} tried to login but bot is not started`, new Date())
+      return
     }
     if (!this.conn) return
     if (!this.playerInWhitelist(client.username)) {
@@ -289,10 +365,10 @@ export class InspectorProxy extends EventEmitter {
       this.emit('clientDisconnect', client)
       this.broadcastMessage(`${this.proxyChatPrefix} User §3${client.username}§r disconnected`)
       console.info(`User ${client.username} logged off`, new Date())
-      if (this.proxyOptions.stopOnLogoff) {
+      if (this.proxyOptions.botStopOnLogoff || this.proxyOptions.stopOnLogoff) {
         if (this.server && Object.values(this.server?.clients).length === 0) {
           console.info('Last player disconnected stopping server')
-          this.stop()
+          this.stopBot()
         }
       }
     })
@@ -327,7 +403,7 @@ export class InspectorProxy extends EventEmitter {
   genToServerMiddleware() {
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
-      if (info.meta.name === 'chat' && !this.commandsDisabled) {
+      if (info.meta.name === 'chat' && !this.proxyOptions.disabledCommands) {
         // console.info('Client chat')
         this.emit('clientChatRaw', pclient, data.message)
         if ((data.message as string).startsWith('$')) { // command
@@ -423,10 +499,12 @@ export class InspectorProxy extends EventEmitter {
     if (!this.server) return
     line1 = String(line1).replace(/\n/g, '').slice(0, 200) // remove newlines
     line2 = String(line2).replace(/\n/g, '').slice(0, 200)
-    this.server.motd = `${line1}\n${line2}`
+    const msg = `${line1}\n${line2}`
+    this.server.motd = msg
+    this.proxyOptions.motd = msg
   }
 
-  setChatMessageMotd(message: Object) {
+  setChatMessageMotd(message: ChatMessage) {
     if (!this.server) return
     this.server.motdMsg = message
   }
@@ -441,7 +519,7 @@ export class InspectorProxy extends EventEmitter {
  */
 export function makeBot(options: BotOptions, proxyOptions?: ProxyOptions): Conn {
   const cls = new InspectorProxy(options, proxyOptions)
-  cls.start()
+  cls.startBot()
   if (!cls.conn) throw new Error('Something when wrong')
   return cls.conn
 }
