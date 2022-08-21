@@ -47,6 +47,7 @@ declare module 'mineflayer' {
     proxy: {
       botIsControlling: boolean
       emitter: ProxyInspectorEmitter
+      botHasControl(): boolean
     }
   }
 }
@@ -291,7 +292,8 @@ export class InspectorProxy extends EventEmitter {
     if (!this.conn) return
     this.conn.bot.proxy = {
       botIsControlling: true,
-      emitter: new EventEmitter()
+      emitter: new EventEmitter(),
+      botHasControl: () => !this.conn || (this.conn && this.conn.writingClient === undefined),
     }
 
     this.conn.bot.once('login', () => {
@@ -362,6 +364,7 @@ export class InspectorProxy extends EventEmitter {
 
     client.once('end', () => {
       this.fakePlayer?.unregister(client)
+      this.unlink(client)
       this.emit('clientDisconnect', client)
       this.broadcastMessage(`${this.proxyChatPrefix} User §3${client.username}§r disconnected`)
       console.info(`User ${client.username} logged off`, new Date())
