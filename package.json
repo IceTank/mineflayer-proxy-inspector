@@ -1,6 +1,6 @@
 {
   "name": "mineflayer-proxy-inspector",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Package for inspecting mineflayer bots as fake players in-game",
   "main": "dist/index.js",
   "scripts": {
@@ -13,7 +13,7 @@
   "author": "Ic3Tank",
   "license": "ISC",
   "dependencies": {
-    "@rob9315/mcproxy": "github:IceTank/mcproxy-1#middleware",
+    "@rob9315/mcproxy": "github:IceTank/mcproxy-1#076c4a11584b2d3e78577bb2979afd01c6e2b611",
     "minecraft-protocol": "^1.35.0",
     "mineflayer": "^4.2.0"
   },
