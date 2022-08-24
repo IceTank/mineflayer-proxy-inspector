@@ -47,6 +47,8 @@ declare module 'mineflayer' {
     proxy: {
       botIsControlling: boolean
       emitter: ProxyInspectorEmitter
+      message(client: Client | ServerClient, message: string, prefix?: boolean, allowFormatting?: boolean): void
+      broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean): void
       botHasControl(): boolean
     }
   }
@@ -204,10 +206,10 @@ export class InspectorProxy extends EventEmitter {
     this.server.on('login', this.onClientLogin.bind(this))
   }
 
-  broadcastMessage(message: string) {
+  broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean) {
     if (!this.server?.clients) return
     Object.values(this.server.clients).forEach(c => {
-      this.message(c, message)
+      this.message(c, message, prefix, allowFormatting)
     })
   }
 
@@ -294,6 +296,14 @@ export class InspectorProxy extends EventEmitter {
       botIsControlling: true,
       emitter: new EventEmitter(),
       botHasControl: () => !this.conn || (this.conn && this.conn.writingClient === undefined),
+      message: (client, message, prefix, allowFormatting) => {
+        if (!this.conn) return
+        this.message(client, message, prefix, allowFormatting)
+      },
+      broadcastMessage: (message, prefix, allowFormatting) => {
+        if (!this.conn) return
+        this.broadcastMessage(message, prefix, allowFormatting)
+      }
     }
 
     this.conn.bot.once('login', () => {
