@@ -390,7 +390,7 @@ export class InspectorProxy extends EventEmitter {
   }
 
   message(client: Client | ServerClient, message: string, prefix: boolean = true, allowFormatting: boolean = true) {
-    if (allowFormatting) {
+    if (!allowFormatting) {
       const r = /§./
       while (r.test(message)) {
         message = message.replace(r, '')
