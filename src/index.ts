@@ -36,6 +36,8 @@ export interface ProxyOptions {
   autoStartBotOnServerLogin?: boolean
 
   logPlayerJoinLeave?: boolean
+  /** Disconnect all connected players once the proxy bot stops. Defaults to true. If not on players will still be connected but won't receive updates from the server. */
+  disconnectAllOnEnd?: boolean
 
   toClientMiddlewares?: PacketMiddleware[]
   toServerMiddlewares?: PacketMiddleware[]
@@ -95,6 +97,7 @@ export class InspectorProxy extends EventEmitter {
     this.proxyOptions.disabledCommands ??= false
     this.proxyOptions.linkOnConnect ??= true
     this.proxyOptions.autoStartBotOnServerLogin ??= true
+    this.proxyOptions.disconnectAllOnEnd ??= true
 
     this.proxyOptions.startOnLogin ??= true
     this.proxyOptions.stopOnLogoff ??= false
@@ -159,6 +162,11 @@ export class InspectorProxy extends EventEmitter {
     }
     console.info('Stopping Bot')
     this.fakePlayer?.destroy()
+    if (this.proxyOptions.disconnectAllOnEnd) {
+        this.conn.receivingClients.forEach((c) => {
+        c.end('Proxy disconnected')
+      })
+    }
     this.conn.disconnect()
     this.conn = undefined
     if (this.server) {
