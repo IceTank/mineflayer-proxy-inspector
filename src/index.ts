@@ -9,12 +9,15 @@ import type { ChatMessage } from 'prismarine-chat'
 
 export { sendMessage }
 
+type allowListCallback = (username: string) => boolean
+
 export interface ProxyOptions {
   port?: number
   motd?: string
   security?: {
     onlineMode?: boolean
-    allowList?: string[]
+    /** Optional. If not set all players are allowed to join. Either a list off players allowed to connect to the proxy or a function that returns a boolean value. */
+    allowList?: string[] | allowListCallback
     kickMessage?: string
   },
   /** Link a connecting client as soon as he joins if no one else is currently controlling the proxy. Default: true */
@@ -112,9 +115,19 @@ export class InspectorProxy extends EventEmitter {
     }
   }
 
-  playerInWhitelist(name: string) {
+  playerInWhitelist(name: string): boolean {
     if (!this.proxyOptions.security?.allowList) return true
-    return this.proxyOptions.security?.allowList?.find(n => n.toLowerCase() === name.toLowerCase()) !== undefined
+    if (typeof this.proxyOptions.security.allowList === 'object') {
+      return this.proxyOptions.security?.allowList?.find(n => n.toLowerCase() === name.toLowerCase()) !== undefined
+    } else if (typeof this.proxyOptions.security.allowList === 'function') {
+      try {
+        return !!this.proxyOptions.security.allowList(name)
+      } catch (e) {
+        console.warn('allowlist callback had error', e)
+        return false
+      }
+    }
+    return false
   }
 
   botIsInControl() {
@@ -341,14 +354,6 @@ export class InspectorProxy extends EventEmitter {
   }
 
   async onClientLogin(client: ServerClient) {
-    if (!this.conn)
-    if (this.proxyOptions.autoStartBotOnServerLogin) {
-      await this.startBot()
-    } else {
-      client.end('Bot not started')
-      console.info(`User ${client.username} tried to login but bot is not started`, new Date())
-      return
-    }
     if (!this.conn) return
     if (!this.playerInWhitelist(client.username)) {
       const { address, family, port } = {
@@ -359,6 +364,13 @@ export class InspectorProxy extends EventEmitter {
       }
       console.warn(`${client.username} is not in the whitelist, kicking (${address}, ${family}, ${port})`)
       client.end(this.proxyOptions.security?.kickMessage ?? 'You are not in the whitelist')
+      return
+    }
+    if (this.proxyOptions.autoStartBotOnServerLogin) {
+      await this.startBot()
+    } else {
+      client.end('Bot not started')
+      console.info(`User ${client.username} tried to login but bot is not started`, new Date())
       return
     }
     console.info(`User ${client.username} logged in`, new Date())
