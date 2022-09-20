@@ -409,7 +409,7 @@ export class InspectorProxy extends EventEmitter {
     this.emit('clientConnect', client)
   }
 
-  message(client: Client | ServerClient, message: string, prefix: boolean = true, allowFormatting: boolean = true) {
+  message(client: Client | ServerClient, message: string, prefix: boolean = true, allowFormatting: boolean = true, position: number = 1) {
     if (!allowFormatting) {
       const r = /§./
       while (r.test(message)) {
@@ -419,7 +419,7 @@ export class InspectorProxy extends EventEmitter {
     if (prefix) {
       message = `${this.proxyChatPrefix} ${message}`
     }
-    sendMessage(client, message)
+    sendMessage(client, message, position)
   }
 
   printHelp(client: Client | ServerClient) {

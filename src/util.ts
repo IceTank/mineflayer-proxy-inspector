@@ -40,9 +40,9 @@ class FakeEntity {
   }
 }
 
-export function sendMessage(client: ServerClient | Client, message: string) {
+export function sendMessage(client: ServerClient | Client, message: string, position: number = 1) {
   const messageObj = new ChatMessage(message)
-  client.write('chat', { message: messageObj.json.toString() })
+  client.write('chat', { message: messageObj.json.toString(), position })
 }
 
 export class FakePlayer {
