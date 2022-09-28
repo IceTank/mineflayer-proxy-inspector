@@ -52,8 +52,8 @@ declare module 'mineflayer' {
     proxy: {
       botIsControlling: boolean
       emitter: ProxyInspectorEmitter
-      message(client: Client | ServerClient, message: string, prefix?: boolean, allowFormatting?: boolean): void
-      broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean): void
+      message(client: Client | ServerClient, message: string, prefix?: boolean, allowFormatting?: boolean, position?: number): void
+      broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean, position?: number): void
       botHasControl(): boolean
     }
   }
@@ -227,10 +227,10 @@ export class InspectorProxy extends EventEmitter {
     this.server.on('login', this.onClientLogin.bind(this))
   }
 
-  broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean) {
+  broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean, position?: number) {
     if (!this.server?.clients) return
     Object.values(this.server.clients).forEach(c => {
-      this.message(c, message, prefix, allowFormatting)
+      this.message(c, message, prefix, allowFormatting, position)
     })
   }
 
@@ -317,13 +317,13 @@ export class InspectorProxy extends EventEmitter {
       botIsControlling: true,
       emitter: new EventEmitter(),
       botHasControl: () => !this.conn || (this.conn && this.conn.writingClient === undefined),
-      message: (client, message, prefix, allowFormatting) => {
+      message: (client, message, prefix, allowFormatting, position) => {
         if (!this.conn) return
-        this.message(client, message, prefix, allowFormatting)
+        this.message(client, message, prefix, allowFormatting, position)
       },
-      broadcastMessage: (message, prefix, allowFormatting) => {
+      broadcastMessage: (message, prefix, allowFormatting, position) => {
         if (!this.conn) return
-        this.broadcastMessage(message, prefix, allowFormatting)
+        this.broadcastMessage(message, prefix, allowFormatting, position)
       }
     }
 
