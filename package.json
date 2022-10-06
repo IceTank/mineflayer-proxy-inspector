@@ -1,6 +1,6 @@
 {
   "name": "mineflayer-proxy-inspector",
-  "version": "1.10.1",
+  "version": "1.11.0",
   "description": "Package for inspecting mineflayer bots as fake players in-game",
   "main": "dist/index.js",
   "scripts": {
