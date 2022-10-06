@@ -271,18 +271,20 @@ export class InspectorProxy extends EventEmitter {
     }
   }
 
-  unlink(client: Client | ServerClient) {
+  unlink(client?: Client | ServerClient) {
     if (!this.conn) return
-    if (client !== this.conn.writingClient) {
-      console.warn('Cannot unlink as not in control!')
-      this.message(client, 'Cannot unlink as not in control!')
-      return
+    if (client) {
+      if (client !== this.conn.writingClient) {
+        console.warn('Cannot unlink as not in control!')
+        this.message(client, 'Cannot unlink as not in control!')
+        return
+      }
+      this.fakePlayer?.register(client as unknown as ServerClient)
+      this.fakeSpectator?.makeSpectator(client as unknown as ServerClient)
+      this.message(client, 'Unlinking')
     }
     this.conn?.unlink()
     this.conn.bot.proxy.botIsControlling = true
-    this.fakePlayer?.register(client as unknown as ServerClient)
-    this.fakeSpectator?.makeSpectator(client as unknown as ServerClient)
-    this.message(client, 'Unlinking')
     setTimeout().then(() => {
       if (!this.conn) return
       this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
