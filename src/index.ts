@@ -144,10 +144,8 @@ export class InspectorProxy extends EventEmitter {
 
   async startBot() {
     if (this.conn) {
-      console.warn('Already running not starting')
       return
     }
-    console.info('Starting bot')
     this.conn = new Conn(this.options, {
       toClientMiddleware: [...this.genToClientMiddleware(), ...(this.proxyOptions.toClientMiddlewares || [])],
       toServerMiddleware: [...this.genToServerMiddleware(), ...(this.proxyOptions.toServerMiddlewares || [])]
@@ -170,10 +168,8 @@ export class InspectorProxy extends EventEmitter {
 
   stopBot() {
     if (this.conn === undefined) {
-      console.warn('Already stopped')
       return
     }
-    console.info('Stopping Bot')
     this.fakePlayer?.destroy()
     if (this.proxyOptions.disconnectAllOnEnd) {
         this.conn.receivingClients.forEach((c) => {
@@ -197,17 +193,14 @@ export class InspectorProxy extends EventEmitter {
    */
   stopServer() {
     if (!this.server) return
-    console.info('Stopping server')
     this.server.close()
     this.server = undefined
   }
 
   startServer() {
     if (this.server) {
-      console.warn('Already running not starting')
       return
     }
-    console.info('Starting server')
     const motd = this.proxyOptions.motd ?? this.conn === undefined ? '§6Waiting for connections' : 'Logged in with §3' + this.conn.bot.username
     this.server = createServer({
       motd: motd,
@@ -245,13 +238,11 @@ export class InspectorProxy extends EventEmitter {
   link(client: ServerClient | Client) {
     if (!this.conn) return
     if (client === this.conn.writingClient) {
-      console.warn('Already in control cannot link!')
       this.message(client, 'Already in control cannot link!')
       return
     }
     
     if (!this.conn.writingClient) {
-      // console.info('Linking', this.proxyOptions.linkOnConnect)
       this.message(client, 'Linking')
       this.conn.link(client as unknown as Client)
       this.conn.bot.proxy.botIsControlling = !this.conn.writingClient
@@ -266,7 +257,6 @@ export class InspectorProxy extends EventEmitter {
       })
     } else {
       const mes = `Cannot link. User §3${this.conn.writingClient.username}§r is linked.`
-      console.warn(mes)
       this.message(client, mes)
     }
   }
@@ -275,7 +265,6 @@ export class InspectorProxy extends EventEmitter {
     if (!this.conn) return
     if (client) {
       if (client !== this.conn.writingClient) {
-        console.warn('Cannot unlink as not in control!')
         this.message(client, 'Cannot unlink as not in control!')
         return
       }
@@ -348,7 +337,6 @@ export class InspectorProxy extends EventEmitter {
     })
 
     this.conn.bot.once('end', () => {
-      console.info(`Bot stopped`)
       if (this.proxyOptions.serverStopOnBotStop || this.proxyOptions.stopOnLogoff) {
         this.stopServer()
       }
@@ -372,10 +360,8 @@ export class InspectorProxy extends EventEmitter {
       await this.startBot()
     } else {
       client.end('Bot not started')
-      console.info(`User ${client.username} tried to login but bot is not started`, new Date())
       return
     }
-    console.info(`User ${client.username} logged in`, new Date())
     
     this.sendPackets(client)
     this.attach(client)
@@ -385,12 +371,9 @@ export class InspectorProxy extends EventEmitter {
     this.printHelp(client)
 
     if (!connect) {
-      console.info('Connection not linking for client', client.username)
       this.fakePlayer?.register(client)
-      // this.fakePlayer?.spawn(client)
       this.fakeSpectator?.makeSpectator(client)
     } else {
-      console.info('Connection linking for client', client.username)
       this.link(client)
     }
 
@@ -399,10 +382,8 @@ export class InspectorProxy extends EventEmitter {
       this.unlink(client)
       this.emit('clientDisconnect', client)
       this.broadcastMessage(`${this.proxyChatPrefix} User §3${client.username}§r disconnected`)
-      console.info(`User ${client.username} logged off`, new Date())
       if (this.proxyOptions.botStopOnLogoff || this.proxyOptions.stopOnLogoff) {
         if (this.server && Object.values(this.server?.clients).length === 0) {
-          console.info('Last player disconnected stopping server')
           this.stopBot()
         }
       }
@@ -439,7 +420,6 @@ export class InspectorProxy extends EventEmitter {
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
       if (info.meta.name === 'chat' && !this.proxyOptions.disabledCommands) {
-        // console.info('Client chat')
         this.emit('clientChatRaw', pclient, data.message)
         if ((data.message as string).startsWith('$')) { // command
           canceler() // Cancel everything that starts with $
@@ -472,7 +452,6 @@ export class InspectorProxy extends EventEmitter {
             this.printHelp(pclient)
           }
         } else { // Normal chat messages
-          console.info(`User ${pclient.username} chat: ${data.message}`)
           data.message = data.message.substring(0, 250)
           this.emit('clientChat', pclient, data.message)
           update()
