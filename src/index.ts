@@ -344,7 +344,6 @@ export class InspectorProxy extends EventEmitter {
   }
 
   async onClientLogin(client: ServerClient) {
-    if (!this.conn) return
     if (!this.playerInWhitelist(client.username)) {
       const { address, family, port } = {
         address: 'unknown',
@@ -356,13 +355,18 @@ export class InspectorProxy extends EventEmitter {
       client.end(this.proxyOptions.security?.kickMessage ?? 'You are not in the whitelist')
       return
     }
-    if (this.proxyOptions.autoStartBotOnServerLogin) {
-      await this.startBot()
-    } else {
-      client.end('Bot not started')
+    if (!this.conn) { // If the bot is not currently running we might start it to connect the client
+      if (this.proxyOptions.autoStartBotOnServerLogin) {
+        await this.startBot()
+      } else {
+        client.end('Bot not started')
+        return
+      }
+    }
+    if (!this.conn) { // Airbag and to make typescript happy
+      console.warn('Starting bot failed. Conn not available after startBot was called. Cannot login connecting client')
       return
     }
-    
     this.sendPackets(client)
     this.attach(client)
     
