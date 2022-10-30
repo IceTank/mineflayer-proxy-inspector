@@ -22,7 +22,7 @@ export interface ProxyOptions {
   },
   /** Link a connecting client as soon as he joins if no one else is currently controlling the proxy. Default: true */
   linkOnConnect?: boolean
-  /** @deprecated use botStartOnLogin instead */
+  /** @deprecated use autoStartBotOnServerLogin instead */
   startOnLogin?: boolean
   /** @deprecated use botStopOnLogoff instead */
   stopOnLogoff?: boolean
@@ -37,7 +37,7 @@ export interface ProxyOptions {
   serverStopOnBotStop?: boolean
   /** Auto start the bot when someone joins the server when the bot is not running. Default: true */
   autoStartBotOnServerLogin?: boolean
-
+  /** Log players joining and leaving the proxy. Default: false */
   logPlayerJoinLeave?: boolean
   /** Disconnect all connected players once the proxy bot stops. Defaults to true. If not on players will still be connected but won't receive updates from the server. */
   disconnectAllOnEnd?: boolean
@@ -105,7 +105,7 @@ export class InspectorProxy extends EventEmitter {
     this.proxyOptions.startOnLogin ??= true
     this.proxyOptions.stopOnLogoff ??= false
 
-    this.proxyOptions.logPlayerJoinLeave ??= true
+    this.proxyOptions.logPlayerJoinLeave ??= false
     
     if (this.proxyOptions.botAutoStart || !this.proxyOptions.startOnLogin) {
       this.startBot()
@@ -299,7 +299,7 @@ export class InspectorProxy extends EventEmitter {
       this.message(client, 'Cannot get out off the view. You are controlling the bot')
       return false
     }
-    return this.fakeSpectator?.revertPov(client)
+    return this.fakeSpectator?.revertPov(client) ?? false
   }
 
   private registerBotEvents() {
@@ -343,7 +343,7 @@ export class InspectorProxy extends EventEmitter {
     })
   }
 
-  async onClientLogin(client: ServerClient) {
+  private async onClientLogin(client: ServerClient) {
     if (!this.playerInWhitelist(client.username)) {
       const { address, family, port } = {
         address: 'unknown',
@@ -367,6 +367,9 @@ export class InspectorProxy extends EventEmitter {
       console.warn('Starting bot failed. Conn not available after startBot was called. Cannot login connecting client')
       return
     }
+    if (this.proxyOptions.logPlayerJoinLeave) {
+      console.info(`Player ${client.username} joined the proxy`)
+    }
     this.sendPackets(client)
     this.attach(client)
     
@@ -386,6 +389,9 @@ export class InspectorProxy extends EventEmitter {
       this.unlink(client)
       this.emit('clientDisconnect', client)
       this.broadcastMessage(`${this.proxyChatPrefix} User §3${client.username}§r disconnected`)
+      if (this.proxyOptions.logPlayerJoinLeave) {
+        console.info(`Player ${client.username} disconnected from the proxy`)
+      }
       if (this.proxyOptions.botStopOnLogoff || this.proxyOptions.stopOnLogoff) {
         if (this.server && Object.values(this.server?.clients).length === 0) {
           this.stopBot()
@@ -420,7 +426,7 @@ export class InspectorProxy extends EventEmitter {
     this.message(client, '$help    This')
   }
 
-  genToServerMiddleware() {
+  private genToServerMiddleware() {
     const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
       if (info.meta.name === 'chat' && !this.proxyOptions.disabledCommands) {
@@ -474,7 +480,7 @@ export class InspectorProxy extends EventEmitter {
     return [inspector_toServerMiddleware]
   }
 
-  genToClientMiddleware() {
+  private genToClientMiddleware() {
     const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
       if (!this.conn) return
       if (canceler.isCanceled) return
