@@ -74,6 +74,7 @@ export interface InspectorProxy {
   on(event: 'botStart', listener: (conn: Conn) => void): this
   on(event: 'botReady', listener: (conn: Conn) => void): this
   on(event: 'serverStart', listener: () => void): this
+  on(event: 'serverClose', listener: () => void): this
 }
 
 export class InspectorProxy extends EventEmitter {
@@ -195,6 +196,7 @@ export class InspectorProxy extends EventEmitter {
     if (!this.server) return
     this.server.close()
     this.server = undefined
+    this.emit('serverClose')
   }
 
   startServer() {
