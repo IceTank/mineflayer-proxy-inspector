@@ -15,9 +15,14 @@
   "dependencies": {
     "@rob9315/mcproxy": "github:IceTank/mcproxy-1#076c4a11584b2d3e78577bb2979afd01c6e2b611",
     "minecraft-protocol": "^1.35.0",
-    "mineflayer": "^4.2.0"
+    "mineflayer": "^4.2.0",
+    "prismarine-provider-anvil": "^2.7.0",
+    "prismarine-world": "IceTank/prismarine-world.git#storage-provider-save-fix"
   },
   "devDependencies": {
     "@types/node": "^16.11.13"
+  },
+  "resolutions": {
+    "mineflayer/prismarine-world": "IceTank/prismarine-world.git#storage-provider-save-fix"
   }
 }

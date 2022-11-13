@@ -6,6 +6,10 @@ import { BotOptions } from "mineflayer";
 import EventEmitter, { once } from "events";
 import { setTimeout } from "timers/promises";
 import type { ChatMessage } from 'prismarine-chat'
+import path from "path";
+import fs from 'fs'
+import { WorldManager } from "./worldManager";
+import { Vec3 } from 'vec3'
 
 export { sendMessage }
 
@@ -80,16 +84,23 @@ export interface InspectorProxy {
 export class InspectorProxy extends EventEmitter {
   options: BotOptions
   proxyOptions: ProxyOptions
+  worldManager: WorldManager
   conn?: Conn
   server: Server | undefined
   fakePlayer?: FakePlayer
   fakeSpectator?: FakeSpectator
   blockedPacketsWhenNotInControl: string[]
   proxyChatPrefix: string = '§6Proxy >>§r'
+  worldSave = 'worlds'
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
-    this.options = options
+    this.worldManager = new WorldManager('worlds')
+    this.options = {
+      ...options,
+      // @ts-ignore
+      storageBuilder: this.worldManager.onStorageBuilder()
+    }
     this.proxyOptions = proxyOptions
     this.server = undefined
     this.blockedPacketsWhenNotInControl = ['abilities', 'position']
@@ -145,8 +156,10 @@ export class InspectorProxy extends EventEmitter {
 
   async startBot() {
     if (this.conn) {
+      console.info('Already started not starting')
       return
     }
+    console.info('Starting bot')
     this.conn = new Conn(this.options, {
       toClientMiddleware: [...this.genToClientMiddleware(), ...(this.proxyOptions.toClientMiddlewares || [])],
       toServerMiddleware: [...this.genToServerMiddleware(), ...(this.proxyOptions.toServerMiddlewares || [])]
@@ -229,12 +242,15 @@ export class InspectorProxy extends EventEmitter {
     })
   }
 
-  attach(client: ServerClient) {
+  attach(client: ServerClient, options: {
+    toClientMiddleware?: PacketMiddleware[],
+    toServerMiddleware?: PacketMiddleware[]
+  } = {}) {
     if (!this.conn) return
     // const toClientMiddleware = this.genToClientMiddleware()
     // const toServerMiddleware = this.genToServerMiddleware()
 
-    this.conn.attach(client as unknown as Client)
+    this.conn.attach(client as unknown as Client, options)
   }
 
   link(client: ServerClient | Client) {
@@ -369,8 +385,17 @@ export class InspectorProxy extends EventEmitter {
       console.warn('Starting bot failed. Conn not available after startBot was called. Cannot login connecting client')
       return
     }
+    
+    const managedPlayer = this.worldManager.newManagedPlayer(client, this.conn.bot.entity.position)
+    managedPlayer.loadedChunks = this.conn.bot.world.getColumns().map(({ chunkX, chunkZ }:  {chunkX: number, chunkZ: number}) => new Vec3(chunkX * 16, 0, chunkZ * 16))
+    this.conn.bot.on('spawn', () => {
+      if (!this.conn?.bot) return
+      managedPlayer.pos = this.conn.bot.entity.position
+    })
+    this.attach(client, {
+      toClientMiddleware: [...managedPlayer.getMiddlewareToClient()]
+    })
     this.sendPackets(client)
-    this.attach(client)
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.writingClient
     this.broadcastMessage(`User §3${client.username}§r logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
@@ -454,6 +479,23 @@ export class InspectorProxy extends EventEmitter {
             }
             this.fakeSpectator?.revertPov(pclient)
             this.fakeSpectator?.tpToOrigin(pclient)
+          } else if (cmd.startsWith('viewdistance')) {
+            const words = cmd.split(' ')
+            if (words[1] === 'disable') {
+              this.message(pclient, 'Disabling extended render distance')
+              this.worldManager.disableClientExtension(pclient)
+              return
+            }
+            let chunkViewDistance = Number(words[1])
+            if (isNaN(chunkViewDistance)) {
+              chunkViewDistance = 20
+            }
+            this.message(pclient, `Setting player view distance to ${chunkViewDistance}`, true, true)
+            this.worldManager.setClientView(pclient, chunkViewDistance)
+            // this.worldManager.test(this.conn.bot.entity.position, this.worldManager.worlds['minecraft_overworld'], viewDistance)
+          } else if (cmd === 'reloadchunks') {
+            this.message(pclient, 'Reloading chunks', true, true)
+            this.worldManager.reloadClientChunks(pclient, 2)
           } else {
             this.printHelp(pclient)
           }
