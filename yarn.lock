@@ -16,9 +16,10 @@
     jsonwebtoken "^8.5.1"
     uuid "^8.3.0"
 
-"@rob9315/mcproxy@github:IceTank/mcproxy-1#076c4a11584b2d3e78577bb2979afd01c6e2b611":
-  version "0.3.1"
-  resolved "https://codeload.github.com/IceTank/mcproxy-1/tar.gz/076c4a11584b2d3e78577bb2979afd01c6e2b611"
+"@rob9315/mcproxy@0.3.2-beta.0":
+  version "0.3.2-beta.0"
+  resolved "https://registry.yarnpkg.com/@rob9315/mcproxy/-/mcproxy-0.3.2-beta.0.tgz#7b1a374beff85e8a4fd41ee23de8d51ed7a8ffe4"
+  integrity sha512-zIK0Baje+Oq/4L/Z2LV6c2TeSt4p8BwIy8ijYRulsw0uk0SjHUbyHBunEPf7Aahm23S992V6qfHI/EgES1Z57A==
   dependencies:
     minecraft-data "^3.0.0"
     minecraft-protocol "^1.32.0"

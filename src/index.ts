@@ -132,7 +132,7 @@ export class InspectorProxy extends EventEmitter {
 
   botIsInControl() {
     if (!this.conn) return false
-    return !this.conn.writingClient
+    return !this.conn.pclient
   }
 
   /**
@@ -172,7 +172,7 @@ export class InspectorProxy extends EventEmitter {
     }
     this.fakePlayer?.destroy()
     if (this.proxyOptions.disconnectAllOnEnd) {
-        this.conn.receivingClients.forEach((c) => {
+        this.conn.pclients.forEach((c) => {
         c.end('Proxy disconnected')
       })
     }
@@ -237,15 +237,15 @@ export class InspectorProxy extends EventEmitter {
 
   link(client: ServerClient | Client) {
     if (!this.conn) return
-    if (client === this.conn.writingClient) {
+    if (client === this.conn.pclient) {
       this.message(client, 'Already in control cannot link!')
       return
     }
     
-    if (!this.conn.writingClient) {
+    if (!this.conn.pclient) {
       this.message(client, 'Linking')
       this.conn.link(client as unknown as Client)
-      this.conn.bot.proxy.botIsControlling = !this.conn.writingClient
+      this.conn.bot.proxy.botIsControlling = !this.conn.pclient
 
       this.fakeSpectator?.revertPov(client)
       this.fakePlayer?.unregister(client as unknown as ServerClient)
@@ -256,7 +256,7 @@ export class InspectorProxy extends EventEmitter {
         this.conn.bot.proxy.emitter.emit('proxyBotLostControl')
       })
     } else {
-      const mes = `Cannot link. User §3${this.conn.writingClient.username}§r is linked.`
+      const mes = `Cannot link. User §3${this.conn.pclient.username}§r is linked.`
       this.message(client, mes)
     }
   }
@@ -264,7 +264,7 @@ export class InspectorProxy extends EventEmitter {
   unlink(client?: Client | ServerClient) {
     if (!this.conn) return
     if (client) {
-      if (client !== this.conn.writingClient) {
+      if (client !== this.conn.pclient) {
         this.message(client, 'Cannot unlink as not in control!')
         return
       }
@@ -286,7 +286,7 @@ export class InspectorProxy extends EventEmitter {
 
   makeViewFakePlayer(client: ServerClient | Client) {
     if (!this.conn) return false
-    if (client === this.conn.writingClient) {
+    if (client === this.conn.pclient) {
       this.message(client, `Cannot get into the view. You are controlling the bot`)
       return false
     }
@@ -295,7 +295,7 @@ export class InspectorProxy extends EventEmitter {
 
   makeViewNormal(client: ServerClient | Client) {
     if (!this.conn) return false
-    if (client === this.conn.writingClient) {
+    if (client === this.conn.pclient) {
       this.message(client, 'Cannot get out off the view. You are controlling the bot')
       return false
     }
@@ -307,7 +307,7 @@ export class InspectorProxy extends EventEmitter {
     this.conn.bot.proxy = {
       botIsControlling: true,
       emitter: new EventEmitter(),
-      botHasControl: () => !this.conn || (this.conn && this.conn.writingClient === undefined),
+      botHasControl: () => !this.conn || (this.conn && this.conn.pclient === undefined),
       message: (client, message, prefix, allowFormatting, position) => {
         if (!this.conn) return
         this.message(client, message, prefix, allowFormatting, position)
@@ -320,7 +320,7 @@ export class InspectorProxy extends EventEmitter {
 
     this.conn.bot.once('login', () => {
       if (!this.conn) return
-      this.fakePlayer = new FakePlayer(this.conn.bot, {
+      this.fakePlayer = new FakePlayer(this.conn.stateData.bot, {
         username: this.conn.bot.username,
         uuid: this.conn.bot._client.uuid
       })
@@ -373,7 +373,7 @@ export class InspectorProxy extends EventEmitter {
     this.sendPackets(client)
     this.attach(client)
     
-    const connect = this.proxyOptions.linkOnConnect && !this.conn.writingClient
+    const connect = this.proxyOptions.linkOnConnect && !this.conn.pclient
     this.broadcastMessage(`User §3${client.username}§r logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
     this.printHelp(client)
 
@@ -427,12 +427,13 @@ export class InspectorProxy extends EventEmitter {
   }
 
   private genToServerMiddleware() {
-    const inspector_toServerMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
-      if (!this.conn) return
-      if (info.meta.name === 'chat' && !this.proxyOptions.disabledCommands) {
+    const inspector_toServerMiddleware: PacketMiddleware = ({ meta, pclient, data, isCanceled }) => {
+      if (!this.conn || !pclient) return
+      let returnValue: false | undefined = undefined
+      if (meta.name === 'chat' && !this.proxyOptions.disabledCommands) {
         this.emit('clientChatRaw', pclient, data.message)
         if ((data.message as string).startsWith('$')) { // command
-          canceler() // Cancel everything that starts with $
+          returnValue = false // Cancel everything that starts with $
           const cmd = (data.message as string).trim().substring(1) // remove $
           if (cmd === 'link') { // link command, replace the bot on the server
             this.link(pclient as unknown as ServerClient)
@@ -452,7 +453,7 @@ export class InspectorProxy extends EventEmitter {
           } else if (cmd.startsWith('c')) {
             this.broadcastMessage(`[${pclient.username}] ${cmd.substring(2)}`)
           } else if (cmd === 'tp') {
-            if (pclient === this.conn?.writingClient) {
+            if (pclient === this.conn?.pclient) {
               this.message(pclient, `Cannot tp. You are controlling the bot.`)
               return
             }
@@ -464,55 +465,54 @@ export class InspectorProxy extends EventEmitter {
         } else { // Normal chat messages
           data.message = data.message.substring(0, 250)
           this.emit('clientChat', pclient, data.message)
-          update()
-          canceler(true)
+          returnValue = undefined
         }
         return
-      } else if (info.meta.name === 'use_entity') {
+      } else if (meta.name === 'use_entity') {
         if (this.fakeSpectator?.clientsInCamera[pclient.uuid] && this.fakeSpectator?.clientsInCamera[pclient.uuid].status) {
           if (data.mouse === 0 || data.mouse === 1) {
             this.fakeSpectator.revertPov(pclient)
           }
         }
       }
+      return returnValue
     }
 
     return [inspector_toServerMiddleware]
   }
 
   private genToClientMiddleware() {
-    const inspector_toClientMiddleware: PacketMiddleware = (info, pclient, data, canceler, update) => {
+    const inspector_toClientMiddleware: PacketMiddleware = ({ isCanceled, bound, meta }) => {
       if (!this.conn) return
-      if (canceler.isCanceled) return
-      if (info.bound !== 'client') return
+      if (isCanceled) return
+      if (bound !== 'client') return
       if (this.botIsInControl()) {
-        if (this.blockedPacketsWhenNotInControl.includes(info.meta.name)) return canceler()
+        if (this.blockedPacketsWhenNotInControl.includes(meta.name)) return false
       }
     }
 
-    const inspector_toClientFakePlayerSync: PacketMiddleware = (info, pclient, data, canceler, update) => {
-      if (canceler.isCanceled) return
-      if (pclient === this.conn?.writingClient) return
+    const inspector_toClientFakePlayerSync: PacketMiddleware = ({ isCanceled, pclient, data, meta }) => {
+      if (isCanceled) return
+      if (pclient === this.conn?.pclient) return
       if (this.conn === undefined) return
       const botId = this.conn.bot.entity.id
-      if (info.meta.name === 'collect' && data.collectorEntityId === botId) {
+      if (meta.name === 'collect' && data.collectorEntityId === botId) {
         data.collectorEntityId = FakePlayer.fakePlayerId
-        update()
-      } else if (info.meta.name === 'entity_metadata' && data.entityId === botId) {
+        return data
+      } else if (meta.name === 'entity_metadata' && data.entityId === botId) {
         data.entityId = FakePlayer.fakePlayerId
-        update()
-      } else if (info.meta.name === 'entity_update_attributes' && data.entityId === botId) {
+        return data
+      } else if (meta.name === 'entity_update_attributes' && data.entityId === botId) {
         data.entityId = FakePlayer.fakePlayerId
-        update()
+        return data
       }
     }
   
-    const inspector_toClientMiddlewareRecipesFix: PacketMiddleware = (info, pclient, data, canceler) => {
-      if (canceler.isCanceled) return
-      if (info.bound !== 'client') return
-      if (info.meta.name === 'unlock_recipes') {
-        canceler()
-        return
+    const inspector_toClientMiddlewareRecipesFix: PacketMiddleware = ({ meta, bound, pclient, data, isCanceled}) => {
+      if (isCanceled) return
+      if (bound !== 'client') return
+      if (meta.name === 'unlock_recipes') {
+        return false
       }
     }
 

@@ -1,14 +1,12 @@
 import { Vec3 } from "vec3";
 import { Client, ServerClient } from "minecraft-protocol";
-import { Bot as VanillaBot, GameState } from "mineflayer";
+import { Bot, GameState } from "mineflayer";
 import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
 import { packetAbilities } from "@rob9315/mcproxy";
 const fetch = require('node-fetch')
 const ChatMessage = require('prismarine-chat')('1.12.2')
-
-type Bot = VanillaBot & { recipes: number[] }
 
 const NoneItemData = {
   blockId: -1,
