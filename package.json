@@ -13,7 +13,7 @@
   "author": "Ic3Tank",
   "license": "ISC",
   "dependencies": {
-    "@rob9315/mcproxy": "0.3.2-beta.0",
+    "@rob9315/mcproxy": "^1.0.0",
     "minecraft-protocol": "^1.35.0",
     "mineflayer": "^4.2.0"
   },
