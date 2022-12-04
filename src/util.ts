@@ -7,6 +7,8 @@ import Item from "prismarine-item";
 import { packetAbilities } from "@rob9315/mcproxy";
 const fetch = require('node-fetch')
 const ChatMessage = require('prismarine-chat')('1.12.2')
+import { EventEmitter } from 'events'
+import { setTimeout as timeoutPromise } from 'timers/promises'
 
 const NoneItemData = {
   blockId: -1,
@@ -520,4 +522,61 @@ function gamemodeToNumber(str: GameState["gameMode"]) {
   } else if (str === 'spectator') {
     return 3
   }
+}
+
+function createTask() {
+  const task: {
+    done: boolean,
+    promise: Promise<void>,
+    cancel: Function,
+    finish: Function
+  } = {
+    done: false,
+    promise: new Promise(() => { }),
+    cancel: () => ({}),
+    finish: () => ({})
+  }
+  task.promise = new Promise((resolve, reject) => {
+    task.cancel = (err: any) => {
+      if (!task.done) {
+        task.done = true
+        reject(err)
+      }
+    }
+    task.finish = (result: any) => {
+      if (!task.done) {
+        task.done = true
+        resolve(result)
+      }
+    }
+  })
+  return task
+}
+
+export function onceWithCleanup (emitter: EventEmitter, event: string, { timeout = 0, checkCondition = undefined }: { timeout?: number, checkCondition?: Function } = {}): Promise<unknown> {
+  const task = createTask()
+
+  const onEvent = (...data: any[]) => {
+    if (typeof checkCondition === 'function' && !checkCondition(...data)) {
+      return
+    }
+
+    task.finish(data)
+  }
+
+  emitter.addListener(event, onEvent)
+
+  if (typeof timeout === 'number' && timeout > 0) {
+    // For some reason, the call stack gets lost if we don't create the error outside of the .then call
+    const timeoutError = new Error(`Event ${event} did not fire within timeout of ${timeout}ms`)
+    timeoutPromise(timeout).then(() => {
+      if (!task.done) {
+        task.cancel(timeoutError)
+      }
+    })
+  }
+
+  task.promise.finally(() => emitter.removeListener(event, onEvent)).catch(err => {})
+
+  return task.promise
 }

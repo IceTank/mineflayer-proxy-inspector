@@ -1,7 +1,7 @@
 import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
 import { createServer, ServerClient } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
-import { FakeSpectator, FakePlayer, sendMessage } from "./util";
+import { FakeSpectator, FakePlayer, sendMessage, onceWithCleanup } from "./util";
 import { BotOptions } from "mineflayer";
 import EventEmitter, { once } from "events";
 import { setTimeout } from "timers/promises";
@@ -73,6 +73,7 @@ export interface InspectorProxy {
   on(event: 'clientChatRaw', listener: (client: Client, message: string) => void): this
   on(event: 'botStart', listener: (conn: Conn) => void): this
   on(event: 'botReady', listener: (conn: Conn) => void): this
+  on(event: 'botEnd', listener: () => void): this
   on(event: 'serverStart', listener: () => void): this
 }
 
@@ -154,9 +155,13 @@ export class InspectorProxy extends EventEmitter {
     setTimeout().then(() => {
       this.emit('botReady', this.conn)
     })
-    await once(this.conn.bot, 'login')
-    await setTimeout(1000)
-    this.emit('botStart', this.conn)
+    try {
+      await onceWithCleanup(this.conn.stateData.bot, 'login')
+      await setTimeout(1000)
+      this.emit('botStart', this.conn)
+    } catch (err) {
+      console.info('Error login in with the bot', err)
+    }
   }
 
   /**
@@ -337,6 +342,7 @@ export class InspectorProxy extends EventEmitter {
     })
 
     this.conn.bot.once('end', () => {
+      this.emit('botEnd')
       if (this.proxyOptions.serverStopOnBotStop || this.proxyOptions.stopOnLogoff) {
         this.stopServer()
       }
