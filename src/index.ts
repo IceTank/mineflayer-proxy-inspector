@@ -73,7 +73,7 @@ export interface InspectorProxy {
   on(event: 'clientChatRaw', listener: (client: Client, message: string) => void): this
   on(event: 'botStart', listener: (conn: Conn) => void): this
   on(event: 'botReady', listener: (conn: Conn) => void): this
-  on(event: 'botEnd', listener: () => void): this
+  on(event: 'botEnd', listener: (conn?: Conn) => void): this
   on(event: 'serverStart', listener: () => void): this
 }
 
@@ -342,7 +342,7 @@ export class InspectorProxy extends EventEmitter {
     })
 
     this.conn.bot.once('end', () => {
-      this.emit('botEnd')
+      this.emit('botEnd', this.conn)
       if (this.proxyOptions.serverStopOnBotStop || this.proxyOptions.stopOnLogoff) {
         this.stopServer()
       }
