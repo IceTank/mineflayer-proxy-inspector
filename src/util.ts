@@ -513,7 +513,7 @@ export class FakeSpectator {
 }
 
 export async function sleep(ms: number) {
-  await asyncTimeout(ms)
+  await timeoutPromise(ms)
 }
 
 function gamemodeToNumber(str: GameState["gameMode"]) {
