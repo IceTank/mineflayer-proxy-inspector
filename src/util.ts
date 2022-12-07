@@ -512,6 +512,10 @@ export class FakeSpectator {
   }
 }
 
+export async function sleep(ms: number) {
+  await asyncTimeout(ms)
+}
+
 function gamemodeToNumber(str: GameState["gameMode"]) {
   if (str === 'survival') {
     return 0

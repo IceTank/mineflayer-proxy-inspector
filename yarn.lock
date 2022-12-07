@@ -16,10 +16,9 @@
     jsonwebtoken "^8.5.1"
     uuid "^8.3.0"
 
-"@rob9315/mcproxy@^1.0.0":
+"@rob9315/mcproxy@IceTank/mcproxy-1.git#position-spoofing":
   version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@rob9315/mcproxy/-/mcproxy-1.0.0.tgz#fb3e4d49ee6bc3f85f04070bf02c089a433c8e24"
-  integrity sha512-9ocEzDt3jmimqCOtfp4ut4Xx4v0Ub17YSEBEDP/yAb27/jgzK3lree/UhDx5QBBVDKhPDu13VcIS+Ho2jWDq4g==
+  resolved "https://codeload.github.com/IceTank/mcproxy-1/tar.gz/b58dca9d2c78227e2750bed6adad336164109a1c"
   dependencies:
     minecraft-data "^3.0.0"
     minecraft-protocol "^1.32.0"
@@ -445,6 +444,16 @@ prismarine-physics@^1.3.1:
     prismarine-nbt "^2.0.0"
     vec3 "^0.1.7"
 
+prismarine-provider-anvil@^2.7.0:
+  version "2.7.0"
+  resolved "https://registry.yarnpkg.com/prismarine-provider-anvil/-/prismarine-provider-anvil-2.7.0.tgz#b3aef307d66de257bcf44f03bd0edb847a778c0c"
+  integrity sha512-a4NfihRfy+PeKpiWp2CJxTUPMhSROXb7JzA44nfRXqHPDnK4ilC2+MBNeZyi5Wj5OuYRbSd8ZS44YkQMoFR9aQ==
+  dependencies:
+    prismarine-chunk "^1.29.0"
+    prismarine-nbt "^2.0.0"
+    uint4 "^0.1.2"
+    vec3 "^0.1.6"
+
 prismarine-recipe@^1.1.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/prismarine-recipe/-/prismarine-recipe-1.2.0.tgz#95c223a37fc1047e4f8f619988d3923ec0c943f7"
@@ -466,10 +475,9 @@ prismarine-windows@^2.4.2:
     minecraft-data "^3.0.0"
     prismarine-item "^1.5.0"
 
-prismarine-world@^3.6.0:
+prismarine-world@IceTank/prismarine-world.git#storage-provider-save-fix, prismarine-world@^3.6.0:
   version "3.6.1"
-  resolved "https://registry.yarnpkg.com/prismarine-world/-/prismarine-world-3.6.1.tgz#c3923ddb8c4806947fb86695f7c8359380aef650"
-  integrity sha512-sv7rR+vJ/ac3/dm4MoumreL4eqMi3B+h8I+JDYXQkNCdSJJISniQvi5qS4zTnAUCGXx/N6QfQ02bjBfyEoZuRw==
+  resolved "https://codeload.github.com/IceTank/prismarine-world/tar.gz/707c62437b9faec648bf0f4300fcd7feecbf238f"
   dependencies:
     vec3 "^0.1.7"
 
@@ -595,7 +603,7 @@ uuid@^8.2.0, uuid@^8.3.0:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
   integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
-vec3@^0.1.3, vec3@^0.1.4, vec3@^0.1.7:
+vec3@^0.1.3, vec3@^0.1.4, vec3@^0.1.6, vec3@^0.1.7:
   version "0.1.7"
   resolved "https://registry.yarnpkg.com/vec3/-/vec3-0.1.7.tgz#e203a7bcc2d074c328721421beed48b30c81e41b"
   integrity sha512-EZSeXBL+L3go2wWwtQQse4fEcNGIQjT14qvi4LYVj1ifZt/J5XZ1QZqkDuOVVH07YwTEIFbsAv3pzwUpF7x9Wg==

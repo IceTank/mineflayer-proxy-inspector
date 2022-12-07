@@ -1,11 +1,15 @@
 import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
 import { createServer, ServerClient } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
-import { FakeSpectator, FakePlayer, sendMessage, onceWithCleanup } from "./util";
+import { FakeSpectator, FakePlayer, sendMessage, sleep, onceWithCleanup } from "./util";
 import { BotOptions } from "mineflayer";
 import EventEmitter, { once } from "events";
 import { setTimeout } from "timers/promises";
 import type { ChatMessage } from 'prismarine-chat'
+import path from "path";
+import fs from 'fs'
+import { WorldManager } from "./worldManager";
+import { Vec3 } from 'vec3'
 
 export { sendMessage }
 
@@ -45,6 +49,8 @@ export interface ProxyOptions {
   toClientMiddlewares?: PacketMiddleware[]
   toServerMiddlewares?: PacketMiddleware[]
   disabledCommands?: boolean
+
+  positionOffset?: Vec3
 }
 
 declare module 'mineflayer' {
@@ -75,21 +81,30 @@ export interface InspectorProxy {
   on(event: 'botReady', listener: (conn: Conn) => void): this
   on(event: 'botEnd', listener: (conn?: Conn) => void): this
   on(event: 'serverStart', listener: () => void): this
+  on(event: 'serverClose', listener: () => void): this
 }
 
 export class InspectorProxy extends EventEmitter {
   options: BotOptions
   proxyOptions: ProxyOptions
+  worldManager: WorldManager
   conn?: Conn
   server: Server | undefined
   fakePlayer?: FakePlayer
   fakeSpectator?: FakeSpectator
   blockedPacketsWhenNotInControl: string[]
   proxyChatPrefix: string = '§6Proxy >>§r'
+  worldSave = 'worlds'
+  positionOffset?: Vec3
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
-    this.options = options
+    this.worldManager = new WorldManager('worlds')
+    this.options = {
+      ...options,
+      // @ts-ignore
+      storageBuilder: this.worldManager.onStorageBuilder()
+    }
     this.proxyOptions = proxyOptions
     this.server = undefined
     this.blockedPacketsWhenNotInControl = ['abilities', 'position']
@@ -145,12 +160,20 @@ export class InspectorProxy extends EventEmitter {
 
   async startBot() {
     if (this.conn) {
+      console.info('Already started not starting')
       return
     }
-    this.conn = new Conn(this.options, {
+    console.info('Starting bot')
+    let offset: Vec3 | undefined = undefined
+    if (this.proxyOptions.positionOffset) {
+      offset = this.proxyOptions.positionOffset
+    }
+    const conn = new Conn(this.options, {
       toClientMiddleware: [...this.genToClientMiddleware(), ...(this.proxyOptions.toClientMiddlewares || [])],
-      toServerMiddleware: [...this.genToServerMiddleware(), ...(this.proxyOptions.toServerMiddlewares || [])]
+      toServerMiddleware: [...this.genToServerMiddleware(), ...(this.proxyOptions.toServerMiddlewares || [])],
+      positionTransformer: offset
     })
+    this.conn = conn
     this.registerBotEvents()
     setTimeout().then(() => {
       this.emit('botReady', this.conn)
@@ -200,6 +223,7 @@ export class InspectorProxy extends EventEmitter {
     if (!this.server) return
     this.server.close()
     this.server = undefined
+    this.emit('serverClose')
   }
 
   startServer() {
@@ -222,6 +246,7 @@ export class InspectorProxy extends EventEmitter {
       }
     })
 
+    // @ts-ignore
     this.server.on('login', this.onClientLogin.bind(this))
   }
 
@@ -232,12 +257,15 @@ export class InspectorProxy extends EventEmitter {
     })
   }
 
-  attach(client: ServerClient) {
+  attach(client: ServerClient | Client, options: {
+    toClientMiddleware?: PacketMiddleware[],
+    toServerMiddleware?: PacketMiddleware[]
+  } = {}) {
     if (!this.conn) return
     // const toClientMiddleware = this.genToClientMiddleware()
     // const toServerMiddleware = this.genToServerMiddleware()
 
-    this.conn.attach(client as unknown as Client)
+    this.conn.attach(client as unknown as Client, options)
   }
 
   link(client: ServerClient | Client) {
@@ -266,7 +294,7 @@ export class InspectorProxy extends EventEmitter {
     }
   }
 
-  unlink(client?: Client | ServerClient) {
+  unlink(client: Client | ServerClient | null) {
     if (!this.conn) return
     if (client) {
       if (client !== this.conn.pclient) {
@@ -285,8 +313,12 @@ export class InspectorProxy extends EventEmitter {
     })
   }
 
-  sendPackets(client: ServerClient) {
-    this.conn?.sendPackets(client as unknown as Client)
+  async sendPackets(client: Client) {
+    // this.conn?.sendPackets(client as unknown as Client)
+    while (!this.conn?.stateData.bot?.player) {
+      await sleep(100)
+    }
+    this.conn.sendPackets(client)
   }
 
   makeViewFakePlayer(client: ServerClient | Client) {
@@ -376,21 +408,34 @@ export class InspectorProxy extends EventEmitter {
     if (this.proxyOptions.logPlayerJoinLeave) {
       console.info(`Player ${client.username} joined the proxy`)
     }
-    this.sendPackets(client)
-    this.attach(client)
+    
+    const managedPlayer = this.worldManager.newManagedPlayer(client, this.conn.bot.entity.position)
+    managedPlayer.loadedChunks = this.conn.bot.world.getColumns().map(({ chunkX, chunkZ }:  {chunkX: number, chunkZ: number}) => new Vec3(chunkX * 16, 0, chunkZ * 16))
+    this.conn.bot.on('spawn', () => {
+      if (!this.conn?.bot) return
+      managedPlayer.pos = this.conn.bot.entity.position
+    })
+    this.conn.stateData.bot.physicsEnabled = false
+    this.attach(client, {
+      toClientMiddleware: [...managedPlayer.getMiddlewareToClient()]
+    })
+    await this.sendPackets(client as unknown as Client)
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.pclient
     this.broadcastMessage(`User §3${client.username}§r logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
     this.printHelp(client)
 
     if (!connect) {
+      // @ts-ignore
       this.fakePlayer?.register(client)
+      // @ts-ignore
       this.fakeSpectator?.makeSpectator(client)
     } else {
       this.link(client)
     }
 
     client.once('end', () => {
+      // @ts-ignore
       this.fakePlayer?.unregister(client)
       this.unlink(client)
       this.emit('clientDisconnect', client)
@@ -438,6 +483,7 @@ export class InspectorProxy extends EventEmitter {
       let returnValue: false | undefined = undefined
       if (meta.name === 'chat' && !this.proxyOptions.disabledCommands) {
         this.emit('clientChatRaw', pclient, data.message)
+        let isCommand = false
         if ((data.message as string).startsWith('$')) { // command
           returnValue = false // Cancel everything that starts with $
           const cmd = (data.message as string).trim().substring(1) // remove $
@@ -465,19 +511,40 @@ export class InspectorProxy extends EventEmitter {
             }
             this.fakeSpectator?.revertPov(pclient)
             this.fakeSpectator?.tpToOrigin(pclient)
+          } else if (cmd.startsWith('viewdistance')) {
+            const words = cmd.split(' ')
+            if (words[1] === 'disable') {
+              this.message(pclient, 'Disabling extended render distance')
+              this.worldManager.disableClientExtension(pclient)
+              return
+            }
+            let chunkViewDistance = Number(words[1])
+            if (isNaN(chunkViewDistance)) {
+              chunkViewDistance = 20
+            }
+            this.message(pclient, `Setting player view distance to ${chunkViewDistance}`, true, true)
+            this.worldManager.setClientView(pclient, chunkViewDistance)
+            // this.worldManager.test(this.conn.bot.entity.position, this.worldManager.worlds['minecraft_overworld'], viewDistance)
+          } else if (cmd === 'reloadchunks') {
+            this.message(pclient, 'Reloading chunks', true, true)
+            this.worldManager.reloadClientChunks(pclient, 2)
           } else {
             this.printHelp(pclient)
           }
+          return false
         } else { // Normal chat messages
           data.message = data.message.substring(0, 250)
           this.emit('clientChat', pclient, data.message)
           returnValue = undefined
         }
+        return data
+      } else if (meta.name === 'use_entity') {
         return
       } else if (meta.name === 'use_entity') {
         if (this.fakeSpectator?.clientsInCamera[pclient.uuid] && this.fakeSpectator?.clientsInCamera[pclient.uuid].status) {
           if (data.mouse === 0 || data.mouse === 1) {
             this.fakeSpectator.revertPov(pclient)
+            return false
           }
         }
       }
@@ -488,7 +555,7 @@ export class InspectorProxy extends EventEmitter {
   }
 
   private genToClientMiddleware() {
-    const inspector_toClientMiddleware: PacketMiddleware = ({ isCanceled, bound, meta }) => {
+    const inspector_toClientMiddleware: PacketMiddleware = ({ meta, isCanceled, bound }) => {
       if (!this.conn) return
       if (isCanceled) return
       if (bound !== 'client') return
@@ -512,9 +579,10 @@ export class InspectorProxy extends EventEmitter {
         data.entityId = FakePlayer.fakePlayerId
         return data
       }
+      return data
     }
   
-    const inspector_toClientMiddlewareRecipesFix: PacketMiddleware = ({ meta, bound, pclient, data, isCanceled}) => {
+    const inspector_toClientMiddlewareRecipesFix: PacketMiddleware = ({ meta, bound, isCanceled }) => {
       if (isCanceled) return
       if (bound !== 'client') return
       if (meta.name === 'unlock_recipes') {
