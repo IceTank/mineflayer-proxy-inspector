@@ -7,7 +7,6 @@ import { SmartBuffer } from 'smart-buffer';
 import { setTimeout } from 'timers/promises'
 const { SpiralIterator2d } = require("prismarine-world").iterators
 import { default as PChat } from 'prismarine-chat'
-const ChatMessage = PChat('1.12.2')
 
 const MAX_CHUNK_DATA_LENGTH = 31598;
 

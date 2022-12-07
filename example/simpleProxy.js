@@ -1,36 +1,7 @@
 const { InspectorProxy } = require('../')
-
-// const readline = require('readline')
-// const rl = readline.createInterface({
-//   input: process.stdin,
-//   output: process.stdout
-// })
-
-// rl.on('line', (line) => {
-//   line = line.trim().toLowerCase()
-//   if (line === 'stopserver') {
-//     proxy.stopServer()
-//   } else if (line === 'startserver') {
-//     proxy.startServer()
-//   } else if (line === 'stopbot') {
-//     proxy.stopBot()
-//   } else if (line === 'startbot') {
-//     proxy.startBot()
-//   }
-// })
-
-let highestId = -Infinity
-
-/** @type { import('@rob9315/mcproxy').PacketMiddleware } */
-const mapShowMiddleware = ({ meta, pclient, data }) => {
-  if (meta.name !== 'map') return
-  const mapId = data.itemDamage
-  if (mapId !== 0 && mapId > highestId) highestId = mapId
-}
+const { Vec3 } = require('vec3')
 
 const proxy = new InspectorProxy({
-  // host: 'localhost',
-  // username: 'mcIc3Tank@outlook.com',
   host: 'localhost',
   username: 'proxyBot',
   auth: 'offline',
@@ -45,14 +16,7 @@ const proxy = new InspectorProxy({
   serverAutoStart: true, // start the server when the proxy starts
   serverStopOnBotStop: false, // Stop the server when the bot stops
   autoStartBotOnServerLogin: true,
-  toClientMiddlewares: [mapShowMiddleware]
-})
-
-proxy.on('clientConnect', (client) => {
-  console.info(`Client ${client.username} connected`)
-  setInterval(() => {
-    proxy.message(client, `Current id ${highestId}`, undefined, undefined, 2)
-  }, 2000)
+  positionOffset: new Vec3(5000, 0, 0)
 })
 
 proxy.on('clientDisconnect', () => {
@@ -68,12 +32,6 @@ proxy.on('botStart', (conn) => {
   proxy.on('clientChat', (client, line) => {
     if (line === 'test') {
       console.info(proxy.conn.receivingClients)
-    }
-  })
-  
-  conn.bot._client.on('packet', (data, packetMeta) => {
-    if (packetMeta.name === 'unlock_recipes') { // This packet is blocked because it is causing issues on 2beeetwoteee
-      console.info(data)
     }
   })
 })
