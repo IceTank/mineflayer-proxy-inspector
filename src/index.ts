@@ -56,6 +56,7 @@ export interface ProxyOptions {
 declare module 'mineflayer' {
   interface Bot {
     proxy: {
+      /** @deprecated Use botHasControl instead */
       botIsControlling: boolean
       emitter: ProxyInspectorEmitter
       message(client: Client | ServerClient, message: string, prefix?: boolean, allowFormatting?: boolean, position?: number): void
@@ -359,9 +360,10 @@ export class InspectorProxy extends EventEmitter {
       if (!this.conn) return
       this.fakePlayer = new FakePlayer(this.conn.stateData.bot, {
         username: this.conn.bot.username,
-        uuid: this.conn.bot._client.uuid
+        uuid: this.conn.bot._client.uuid,
+        positionTransformer: this.conn.positionTransformer
       })
-      this.fakeSpectator = new FakeSpectator(this.conn.bot)
+      this.fakeSpectator = new FakeSpectator(this.conn.bot, { positionTransformer: this.conn.positionTransformer })
       if (this.proxyOptions.serverAutoStart) {
         if (!this.server) this.startServer()
       }

@@ -25,6 +25,7 @@ proxy.on('clientDisconnect', () => {
 
 proxy.on('serverStart', () => console.info('Server started'))
 proxy.on('serverClose', () => console.info('Server closed'))
+proxy.on('botEnd', () => console.info('Bot disconnected'))
 
 proxy.on('botStart', (conn) => {
   console.info('Bot spawned')

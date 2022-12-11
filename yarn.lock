@@ -18,7 +18,7 @@
 
 "@rob9315/mcproxy@IceTank/mcproxy-1.git#position-spoofing":
   version "1.0.0"
-  resolved "https://codeload.github.com/IceTank/mcproxy-1/tar.gz/b58dca9d2c78227e2750bed6adad336164109a1c"
+  resolved "https://codeload.github.com/IceTank/mcproxy-1/tar.gz/5a7d3a689a260b592ccf0fc240d5c363368253ac"
   dependencies:
     minecraft-data "^3.0.0"
     minecraft-protocol "^1.32.0"

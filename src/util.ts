@@ -9,6 +9,7 @@ const fetch = require('node-fetch')
 const ChatMessage = require('prismarine-chat')('1.12.2')
 import { EventEmitter } from 'events'
 import { setTimeout as timeoutPromise } from 'timers/promises'
+import { IPositionTransformer } from "@rob9315/mcproxy/lib/positionTransformer";
 
 const NoneItemData = {
   blockId: -1,
@@ -61,7 +62,8 @@ export class FakePlayer {
   pItem: typeof ItemType
   connectedClients: ServerClient[]
   private isSpawnedMap: Record<string, boolean> = {}
-  constructor(bot: Bot, options: {username?: string, uuid?: string, skinLookup?: boolean} = {}) {
+  private positionTransformer: IPositionTransformer | undefined
+  constructor(bot: Bot, options: {username?: string, uuid?: string, skinLookup?: boolean, positionTransformer?: IPositionTransformer } = {}) {
     this.name = options.username ?? 'Player'
     this.uuid = options.uuid ?? 'a01e3843-e521-3998-958a-f459800e4d11'
     this.skinLookup = options.skinLookup ?? true
@@ -70,6 +72,7 @@ export class FakePlayer {
     this.pItem = Item(bot.version)
     this.initListener()
     this.connectedClients = []
+    this.positionTransformer = options.positionTransformer
   }
 
   static gameModeToNotchian(gamemode: string): 1 | 0 | 2 {
@@ -85,11 +88,24 @@ export class FakePlayer {
     }
   }
 
+  private writeRaw(client: ServerClient | Client, name: string, data: any) {
+    if (this.positionTransformer) {
+      const result = this.positionTransformer.onSToCPacket(name, data)
+      if (!result) return
+      if (result && result.length > 1) return 
+      const [transformedName, transformedData] = result[0]
+      console.info('Write', transformedName, transformedData)
+      client.write(transformedName, transformedData)
+    } else {
+      client.write(name, data)
+    }
+  }
+
   private initListener() {
     const writeIfSpawned = (name: string, data: Object) => {
       this.connectedClients.forEach(c => {
         if (!this.isSpawnedMap[c.uuid]) return
-        c.write(name, data)
+        this.writeRaw(c, name, data)
       })
     }
     this.listenerMove = () => {
@@ -99,6 +115,7 @@ export class FakePlayer {
       // without the known position, the error accumulate fast and player position is incorrect from the point of view
       // of other players
       // const knownPosition = this.fakePlayerEntity.knownPosition
+      console.info('Moved', this.bot.entity.position.toString())
       const position = this.bot.entity.position
       
       let entityPosition = position // 1.12.2 Specific   
@@ -121,7 +138,6 @@ export class FakePlayer {
         yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
         pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
         onGround: false
-
       })
       writeIfSpawned('entity_head_rotation', {
         entityId: FakePlayer.fakePlayerId,
@@ -302,7 +318,7 @@ export class FakePlayer {
       }
     }
     // console.info('Player profile', p)
-    client.write('player_info', {
+    this.writeRaw(client, 'player_info', {
       action: 0,
       data: [{
         UUID: this.uuid,
@@ -326,7 +342,7 @@ export class FakePlayer {
     const offHand = this.bot.inventory.slots[45] ? this.pItem.toNotch(this.bot.inventory.slots[45]) : NoneItemData
     // Main hand
     if (!NotchItemEqual(mainHand, this.fakePlayerEntity.mainHand)) {
-      client.write('entity_equipment', {
+      this.writeRaw(client, 'entity_equipment', {
         entityId: FakePlayer.fakePlayerId,
         slot: 0,
         item: mainHand
@@ -335,7 +351,7 @@ export class FakePlayer {
     }
     // Off-Hand
     if (!NotchItemEqual(offHand, this.fakePlayerEntity.offHand)) {
-      client.write('entity_equipment', {
+      this.writeRaw(client, 'entity_equipment', {
         entityId: FakePlayer.fakePlayerId,
         slot: 1,
         item: offHand
@@ -348,7 +364,7 @@ export class FakePlayer {
       // Armor slots start at 5
       const armorItem = this.bot.inventory.slots[i + 5] ? this.pItem.toNotch(this.bot.inventory.slots[i + 5]) : NoneItemData
       if (NotchItemEqual(armorItem, this.fakePlayerEntity.armor[i])) continue
-      client.write('entity_equipment', {
+      this.writeRaw(client, 'entity_equipment', {
         entityId: FakePlayer.fakePlayerId,
         slot: equipmentMap[i],
         item: armorItem
@@ -358,7 +374,7 @@ export class FakePlayer {
   }
 
   private writePlayerEntity(client: ServerClient) {
-    client.write('named_entity_spawn', {
+    this.writeRaw(client, 'named_entity_spawn', {
       entityId: FakePlayer.fakePlayerId,
       playerUUID: this.uuid,
       x: this.bot.entity.position.x,
@@ -373,14 +389,14 @@ export class FakePlayer {
 
     this.updateEquipment(client)
     
-    client.write('entity_look', {
+    this.writeRaw(client, 'entity_look', {
       entityId: FakePlayer.fakePlayerId,
       yaw: this.bot.entity.yaw,
       pitch: this.bot.entity.pitch,
       onGround: this.bot.entity.onGround
     })
 
-    client.write('entity_head_rotation', {
+    this.writeRaw(client, 'entity_head_rotation', {
       entityId: FakePlayer.fakePlayerId,
       headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
     })
@@ -397,7 +413,7 @@ export class FakePlayer {
   }
 
   private writeDestroyEntity(client: ServerClient) {
-    client.write('entity_destroy', {
+    this.writeRaw(client, 'entity_destroy', {
       entityIds: [ FakePlayer.fakePlayerId ]
     })
   }
@@ -408,7 +424,7 @@ export class FakePlayer {
       // if (!this.isSpawnedMap[client.uuid]) console.warn('Nothing to de-spawn player not spawned')
     }
     this.writeDestroyEntity(client)
-    client.write('player_info', {
+    this.writeRaw(client, 'player_info', {
       action: 4,
       data: [{
         UUID: this.uuid
@@ -421,43 +437,59 @@ export class FakePlayer {
 export class FakeSpectator {
   bot: Bot
   clientsInCamera: Record<string, { status: boolean, cleanup: () => void }> = {}
-  constructor(bot: Bot) {
+  positionTransformer?: IPositionTransformer
+  constructor(bot: Bot, options: { positionTransformer?: IPositionTransformer } = { }) {
     this.bot = bot
+    this.positionTransformer = options.positionTransformer
   }
+
+  private writeRaw(client: ServerClient | Client, name: string, data: any) {
+    if (this.positionTransformer) {
+      const result = this.positionTransformer.onSToCPacket(name, data)
+      if (!result) return
+      if (result && result.length > 1) return 
+      const [transformedName, transformedData] = result[0]
+      console.info('Write', transformedName, transformedData)
+      client.write(transformedName, transformedData)
+    } else {
+      client.write(name, data)
+    }
+  }
+
   makeSpectator(client: ServerClient) {
-    client.write('abilities', {
+    this.writeRaw(client, 'abilities', {
       flags: 7,
       flyingSpeed: 0.05000000074505806,
       walkingSpeed: 0.10000000149011612
     })
-    client.write('player_info', {
+    this.writeRaw(client, 'player_info', {
       action: 1,
       data: [{
         UUID: client.uuid,
         gamemode: 3
       }]
     })
-    client.write('game_state_change', {
+    this.writeRaw(client, 'game_state_change', {
       reason: 3, // https://wiki.vg/index.php?title=Protocol&oldid=14204#Change_Game_State
       gameMode: 3
     })
   }
   revertToNormal(client: ServerClient) {
-    client.write('position', {
+    this.writeRaw(client, 'position', {
       ...this.bot.entity.position,
       yaw: this.bot.entity.yaw,
       pitch: this.bot.entity.pitch,
       onGround: this.bot.entity.onGround
     })
     const a = packetAbilities(this.bot)
-    client.write(a.name, a.data)
-    client.write('game_state_change', {
+    this.writeRaw(client, a.name, a.data)
+    this.writeRaw(client, 'game_state_change', {
       reason: 3, // https://wiki.vg/index.php?title=Protocol&oldid=14204#Change_Game_State
       gameMode: FakePlayer.gameModeToNotchian(this.bot.game.gameMode)
     })
   }
   tpToOrigin(client: Client | ServerClient) {
-    client.write('position', {
+    this.writeRaw(client, 'position', {
       ...(this.bot.entity.position)
     })
   }
@@ -468,11 +500,11 @@ export class FakeSpectator {
         return false
       }
     }
-    client.write('camera', {
+    this.writeRaw(client, 'camera', {
       cameraId: FakePlayer.fakePlayerId
     })
     const updatePos = () => {
-      client.write('position', {
+      this.writeRaw(client, 'position', {
         ...this.bot.entity.position,
         yaw: 180 - (this.bot.entity.yaw * 180) / Math.PI,
         pitch: -(this.bot.entity.pitch * 180) / Math.PI,
@@ -502,7 +534,7 @@ export class FakeSpectator {
       // console.warn('Not in camera cannot revert', client.username)
       return false
     }
-    client.write('camera', {
+    this.writeRaw(client, 'camera', {
       cameraId: this.bot.entity.id
     })
     this.clientsInCamera[client.uuid].cleanup()
