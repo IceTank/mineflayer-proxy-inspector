@@ -94,7 +94,6 @@ export class FakePlayer {
       if (!result) return
       if (result && result.length > 1) return 
       const [transformedName, transformedData] = result[0]
-      console.info('Write', transformedName, transformedData)
       client.write(transformedName, transformedData)
     } else {
       client.write(name, data)
@@ -115,7 +114,6 @@ export class FakePlayer {
       // without the known position, the error accumulate fast and player position is incorrect from the point of view
       // of other players
       // const knownPosition = this.fakePlayerEntity.knownPosition
-      console.info('Moved', this.bot.entity.position.toString())
       const position = this.bot.entity.position
       
       let entityPosition = position // 1.12.2 Specific   
@@ -449,7 +447,6 @@ export class FakeSpectator {
       if (!result) return
       if (result && result.length > 1) return 
       const [transformedName, transformedData] = result[0]
-      console.info('Write', transformedName, transformedData)
       client.write(transformedName, transformedData)
     } else {
       client.write(name, data)
