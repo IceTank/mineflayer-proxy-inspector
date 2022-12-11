@@ -1,21 +1,21 @@
 import path from "path";
 import fs from 'fs'
 import { Vec3, default as VectorBuilder } from 'vec3'
-import { Packet, PacketMiddleware } from "@rob9315/mcproxy";
+import { PacketMiddleware } from "@rob9315/mcproxy";
 import { Client } from 'minecraft-protocol'
-import { SmartBuffer } from 'smart-buffer';
 import { setTimeout } from 'timers/promises'
 const { SpiralIterator2d } = require("prismarine-world").iterators
-import { default as PChat } from 'prismarine-chat'
-
-const MAX_CHUNK_DATA_LENGTH = 31598;
+import { IPositionTransformer } from "@rob9315/mcproxy/lib/positionTransformer";
+import { chunkColumnToPacketsWithOffset } from '@rob9315/mcproxy/lib/packets'
 
 export class WorldManager {
   savePath: string
   worlds: Record<string, any> = {}
   players: Record<string, ManagedPlayer> = {}
-  constructor(savePath: string) {
+  positionTransformer?: IPositionTransformer
+  constructor(savePath: string, options: { positionTransformer?: IPositionTransformer } = {}) {
     this.savePath = savePath
+    this.positionTransformer = options.positionTransformer
     setInterval(() => {
       this.onTick()
     }, 500)
@@ -87,7 +87,7 @@ export class WorldManager {
 
   newManagedPlayer(client: Client, pos: Vec3) {
     if (!(client.uuid in this.players)) {
-      this.players[client.uuid] = new ManagedPlayer(this, client, pos)
+      this.players[client.uuid] = new ManagedPlayer(this, client, pos, this.positionTransformer)
     }
     client.once('end', () => {
       this.players[client.uuid]?.remove()
@@ -112,14 +112,20 @@ class ManagedPlayer {
   loadedChunks: Vec3[] = []
   isActive: boolean = false
   chunkViewDistance: number = 5
-  pos: Vec3
+  positionReference: Vec3
 
   private currentlyExpanding = false
+  private positionTransformer?: IPositionTransformer
 
-  constructor(worldManager: WorldManager, client: Client, pos: Vec3) {
+  constructor(worldManager: WorldManager, client: Client, positionReference: Vec3, positionTransformer?: IPositionTransformer) {
     this.worldManager = worldManager
     this.client = client
-    this.pos = pos
+    this.positionReference = positionReference
+    this.positionTransformer = positionTransformer
+  }
+
+  private writeToClientRaw(client: Client, name: string, data: any) {
+    client.write(name, data)
   }
 
   getMiddlewareToClient() {
@@ -146,7 +152,7 @@ class ManagedPlayer {
   }
 
   private updateLoadQueue() {
-    const poss = this.worldManager.getChunksForPosition(this.chunkViewDistance, this.pos)
+    const poss = this.worldManager.getChunksForPosition(this.chunkViewDistance, this.positionReference)
     for (const inRange of poss) {
       let found = false
       for (const loaded of this.loadedChunks) {
@@ -163,13 +169,13 @@ class ManagedPlayer {
   }
 
   isWithinViewDistance(pos: Vec3) {
-    return pos.manhattanDistanceTo(this.pos) < 16 * this.chunkViewDistance
+    return pos.manhattanDistanceTo(this.positionReference) < 16 * this.chunkViewDistance
   }
 
   reloadChunks(chunkRadius: number = 2) {
     this.loadQueue.clear()
     this.loadedChunks = this.loadedChunks.filter(c => {
-      return this.pos.distanceTo(c) < chunkRadius * 16
+      return this.positionReference.distanceTo(c) < chunkRadius * 16
     })
   }
 
@@ -183,24 +189,35 @@ class ManagedPlayer {
       return
     }
     // console.info('Loaded chunks', this.loadedChunks)
-    let next = Array.from(this.loadQueue).map(hash => VectorBuilder(hash)).sort((a, b) => a.distanceTo(this.pos) - b.distanceTo(this.pos))[0]
+    let next = Array.from(this.loadQueue).map(hash => VectorBuilder(hash)).sort((a, b) => a.distanceTo(this.positionReference) - b.distanceTo(this.positionReference))[0]
     while (next) {
-      debugger
       const { x, z } = next.scaled(1 / 16).floored()
       const column = await world.load(x, z)
       if (column) {
         if (!this.loadedChunks.find(l => l.equals(next))) {
           this.loadedChunks.push(next)
-          console.info('Generating chunk for ', next.floored(), 'distance', this.pos.distanceTo(next))
-          const packets = chunkColumnToPackets(world, { chunkX: x, chunkZ: z, column })
+          // console.info('Generating chunk for ', next.floored(), 'distance', this.positionReference.distanceTo(next))
+          let offset
+          if (this.positionTransformer) {
+            offset = {
+              offsetBlock: this.positionTransformer.sToC.offsetVec.clone(),
+              offsetChunk: this.positionTransformer.sToC.offsetChunkVec.clone()
+            }
+          } else {
+            offset = {
+              offsetBlock: new Vec3(0, 0, 0),
+              offsetChunk: new Vec3(0, 0, 0)
+            }
+          }
+          const packets = chunkColumnToPacketsWithOffset({ chunkX: x, chunkZ: z, column }, undefined, undefined, undefined, offset)
           packets.forEach(p => {
-            this.client.write(p[0], p[1])
+            this.writeToClientRaw(this.client, p[0], p[1])
           })
           await setTimeout(1)
         }
       }
       this.loadQueue.delete(next.toString())
-      next = Array.from(this.loadQueue).map(hash => VectorBuilder(hash)).sort((a, b) => a.distanceTo(this.pos) - b.distanceTo(this.pos))[0]
+      next = Array.from(this.loadQueue).map(hash => VectorBuilder(hash)).sort((a, b) => a.distanceTo(this.positionReference) - b.distanceTo(this.positionReference))[0]
     }
     this.currentlyExpanding = false
   }
@@ -214,60 +231,4 @@ class ManagedPlayer {
     this.updateLoadQueue()
     this.expand().catch(console.error)
   }
-}
-
-function chunkColumnToPackets(
-  world: any,
-  { chunkX: x, chunkZ: z, column }: { chunkX: number; chunkZ: number; column: any },
-  lastBitMask?: number,
-  chunkData: SmartBuffer = new SmartBuffer(),
-  chunkEntities: ChunkEntity[] = []
-): Packet[] {
-  let bitMask = !!lastBitMask ? column.getMask() ^ (column.getMask() & ((lastBitMask << 1) - 1)) : column.getMask();
-  let bitMap = lastBitMask ?? 0b0;
-  let newChunkData = new SmartBuffer();
-
-  // blockEntities
-  // chunkEntities.push(...Object.values(column.blockEntities as Map<string, ChunkEntity>));
-
-  // checks with bitmask if there is a chunk in memory that (a) exists and (b) was not sent to the client yet
-  for (let i = 0; i < 16; i++)
-    if (bitMask & (0b1 << i)) {
-      column.sections[i].write(newChunkData);
-      bitMask ^= 0b1 << i;
-      if (chunkData.length + newChunkData.length > MAX_CHUNK_DATA_LENGTH) {
-        if (!lastBitMask) column.biomes?.forEach((biome: number) => chunkData.writeUInt8(biome));
-        return [
-          ['map_chunk', { x, z, bitMap, chunkData: chunkData.toBuffer(), groundUp: !lastBitMask, blockEntities: [] }],
-          ...chunkColumnToPackets(world, { chunkX: x, chunkZ: z, column }, 0b1 << i, newChunkData),
-          ...getChunkEntityPackets(world, column.blockEntities),
-        ];
-      }
-      bitMap ^= 0b1 << i;
-      chunkData.writeBuffer(newChunkData.toBuffer());
-      newChunkData.clear();
-    }
-  if (!lastBitMask) column.biomes?.forEach((biome: number) => chunkData.writeUInt8(biome));
-  return [['map_chunk', { x, z, bitMap, chunkData: chunkData.toBuffer(), groundUp: !lastBitMask, blockEntities: [] }], ...getChunkEntityPackets(world, column.blockEntities)];
-}
-
-type NbtPositionTag = { type: 'int'; value: number };
-type BlockEntity = { x: NbtPositionTag; y: NbtPositionTag; z: NbtPositionTag; id: object };
-type ChunkEntity = { name: string; type: string; value: BlockEntity };
-function getChunkEntityPackets(world: any, blockEntities: { [pos: string]: ChunkEntity }) {
-  const packets: Packet[] = [];
-  for (const nbtData of Object.values(blockEntities)) {
-    const {
-      x: { value: x },
-      y: { value: y },
-      z: { value: z },
-    } = nbtData.value;
-    const location = { x, y, z };
-    packets.push(['tile_entity_data', { location, nbtData }]);
-    const block = world.getBlock(new Vec3(x, y, z));
-    if (block?.name == 'minecraft:chest') {
-      packets.push(['block_action', { location, byte1: 1, byte2: 0, blockId: block.type }]);
-    }
-  }
-  return packets;
 }

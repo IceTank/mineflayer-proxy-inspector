@@ -17,7 +17,7 @@
     "minecraft-protocol": "^1.35.0",
     "mineflayer": "^4.2.0",
     "prismarine-provider-anvil": "^2.7.0",
-    "prismarine-world": "IceTank/prismarine-world.git#storage-provider-save-fix"
+    "prismarine-world": "^3.6.1"
   },
   "devDependencies": {
     "@types/node": "^16.11.13"

@@ -1,4 +1,4 @@
-import { Client, Conn, PacketMiddleware, packetAbilities, sendTo } from "@rob9315/mcproxy";
+import { Client, Conn, PacketMiddleware, packetAbilities, sendTo, SimplePositionTransformer } from "@rob9315/mcproxy";
 import { createServer, ServerClient } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
 import { FakeSpectator, FakePlayer, sendMessage, sleep, onceWithCleanup } from "./util";
@@ -100,7 +100,12 @@ export class InspectorProxy extends EventEmitter {
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
-    this.worldManager = new WorldManager('worlds')
+    if (proxyOptions.positionOffset) {
+      const positionTransformer = new SimplePositionTransformer(proxyOptions.positionOffset)
+      this.worldManager = new WorldManager('worlds', { positionTransformer })
+    } else {
+      this.worldManager = new WorldManager('worlds')
+    }
     this.options = {
       ...options,
       // @ts-ignore
@@ -415,7 +420,7 @@ export class InspectorProxy extends EventEmitter {
     managedPlayer.loadedChunks = this.conn.bot.world.getColumns().map(({ chunkX, chunkZ }:  {chunkX: number, chunkZ: number}) => new Vec3(chunkX * 16, 0, chunkZ * 16))
     this.conn.bot.on('spawn', () => {
       if (!this.conn?.bot) return
-      managedPlayer.pos = this.conn.bot.entity.position
+      managedPlayer.positionReference = this.conn.bot.entity.position
     })
     this.conn.stateData.bot.physicsEnabled = false
     this.attach(client, {

@@ -18,7 +18,7 @@
 
 "@rob9315/mcproxy@IceTank/mcproxy-1.git#position-spoofing":
   version "1.0.0"
-  resolved "https://codeload.github.com/IceTank/mcproxy-1/tar.gz/5a7d3a689a260b592ccf0fc240d5c363368253ac"
+  resolved "https://codeload.github.com/IceTank/mcproxy-1/tar.gz/dc2657105e5ef8539b8003dbd6dbfe2573f7e190"
   dependencies:
     minecraft-data "^3.0.0"
     minecraft-protocol "^1.32.0"
@@ -475,7 +475,7 @@ prismarine-windows@^2.4.2:
     minecraft-data "^3.0.0"
     prismarine-item "^1.5.0"
 
-prismarine-world@IceTank/prismarine-world.git#storage-provider-save-fix, prismarine-world@^3.6.0:
+prismarine-world@IceTank/prismarine-world.git#storage-provider-save-fix, prismarine-world@^3.6.0, prismarine-world@^3.6.1:
   version "3.6.1"
   resolved "https://codeload.github.com/IceTank/prismarine-world/tar.gz/707c62437b9faec648bf0f4300fcd7feecbf238f"
   dependencies:
