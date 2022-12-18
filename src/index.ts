@@ -211,6 +211,7 @@ export class InspectorProxy extends EventEmitter {
       })
     }
     this.conn.disconnect()
+    this.emit('botEnd', this.conn)
     this.conn = undefined
     if (this.server) {
       if (this.proxyOptions.autoStartBotOnServerLogin) {
@@ -381,10 +382,10 @@ export class InspectorProxy extends EventEmitter {
     })
 
     this.conn.bot.once('end', () => {
-      this.emit('botEnd', this.conn)
       if (this.proxyOptions.serverStopOnBotStop || this.proxyOptions.stopOnLogoff) {
         this.stopServer()
       }
+      this.stopBot()
     })
   }
 
