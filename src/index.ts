@@ -362,7 +362,7 @@ export class InspectorProxy extends EventEmitter {
     this.conn.bot.once('login', () => {
       if (!this.conn) return
       this.fakePlayer = new FakePlayer(this.conn.stateData.bot, {
-        username: this.conn.bot.username,
+        username: '[Bot] ' + this.conn.bot.username,
         uuid: this.conn.bot._client.uuid,
         positionTransformer: this.conn.positionTransformer
       })

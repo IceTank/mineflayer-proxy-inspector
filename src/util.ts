@@ -28,7 +28,7 @@ class FakeEntity {
   onGround: boolean
   mainHand?: NotchItem
   offHand?: NotchItem
-  armor: Array<NotchItem|undefined>
+  armor: Array<NotchItem | undefined>
   constructor(pos: Vec3, yaw: number, pitch: number) {
     this.knownPosition = pos
     this.yaw = yaw
@@ -53,22 +53,22 @@ export class FakePlayer {
   bot: Bot
   fakePlayerEntity: FakeEntity
   static fakePlayerId: number = 9999
-  listenerMove: () => void = () => {}
-  listenerForceMove: () => void = () => {}
-  listenerPhysics: () => void = () => {}
-  listenerInventory: () => void = () => {}
-  listenerWorldLeave: () => void = () => {}
-  listenerWorldJoin: () => void = () => {}
+  listenerMove: () => void = () => { }
+  listenerForceMove: () => void = () => { }
+  listenerPhysics: () => void = () => { }
+  listenerInventory: () => void = () => { }
+  listenerWorldLeave: () => void = () => { }
+  listenerWorldJoin: () => void = () => { }
   pItem: typeof ItemType
   connectedClients: ServerClient[]
   private isSpawnedMap: Record<string, boolean> = {}
   private positionTransformer: IPositionTransformer | undefined
-  constructor(bot: Bot, options: {username?: string, uuid?: string, skinLookup?: boolean, positionTransformer?: IPositionTransformer } = {}) {
+  constructor(bot: Bot, options: { username?: string, uuid?: string, skinLookup?: boolean, positionTransformer?: IPositionTransformer } = {}) {
     this.name = options.username ?? 'Player'
     this.uuid = options.uuid ?? 'a01e3843-e521-3998-958a-f459800e4d11'
     this.skinLookup = options.skinLookup ?? true
     this.bot = bot
-    this.fakePlayerEntity = new FakeEntity(bot.entity.position.clone(), bot.entity.yaw, bot.entity.pitch) 
+    this.fakePlayerEntity = new FakeEntity(bot.entity.position.clone(), bot.entity.yaw, bot.entity.pitch)
     this.pItem = Item(bot.version)
     this.initListener()
     this.connectedClients = []
@@ -76,7 +76,7 @@ export class FakePlayer {
   }
 
   static gameModeToNotchian(gamemode: string): 1 | 0 | 2 {
-    switch(gamemode) {
+    switch (gamemode) {
       case ('survival'):
         return 0
       case ('creative'):
@@ -92,7 +92,7 @@ export class FakePlayer {
     if (this.positionTransformer) {
       const result = this.positionTransformer.onSToCPacket(name, data)
       if (!result) return
-      if (result && result.length > 1) return 
+      if (result && result.length > 1) return
       const [transformedName, transformedData] = result[0]
       client.write(transformedName, transformedData)
     } else {
@@ -115,7 +115,7 @@ export class FakePlayer {
       // of other players
       // const knownPosition = this.fakePlayerEntity.knownPosition
       const position = this.bot.entity.position
-      
+
       let entityPosition = position // 1.12.2 Specific   
       this.fakePlayerEntity.knownPosition = position
       this.fakePlayerEntity.onGround = this.bot.entity.onGround
@@ -141,7 +141,7 @@ export class FakePlayer {
         entityId: FakePlayer.fakePlayerId,
         headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
       })
-      
+
       // Yeah like this does not work
       // const diff = this.bot.entity.position.minus(knownPosition)
       // const maxDelta = 7 // 1.12.2 Specific
@@ -312,7 +312,7 @@ export class FakePlayer {
           console.warn('Skin lookup failed for', this.uuid)
         }
       } catch (err) {
-        console.error('Skin lookup failed', err, response)
+        console.error('Skin lookup failed', err, 'UUID:', this.uuid)
       }
     }
     // console.info('Player profile', p)
@@ -386,7 +386,7 @@ export class FakePlayer {
     })
 
     this.updateEquipment(client)
-    
+
     this.writeRaw(client, 'entity_look', {
       entityId: FakePlayer.fakePlayerId,
       yaw: this.bot.entity.yaw,
@@ -412,7 +412,7 @@ export class FakePlayer {
 
   private writeDestroyEntity(client: ServerClient) {
     this.writeRaw(client, 'entity_destroy', {
-      entityIds: [ FakePlayer.fakePlayerId ]
+      entityIds: [FakePlayer.fakePlayerId]
     })
   }
 
@@ -436,7 +436,7 @@ export class FakeSpectator {
   bot: Bot
   clientsInCamera: Record<string, { status: boolean, cleanup: () => void }> = {}
   positionTransformer?: IPositionTransformer
-  constructor(bot: Bot, options: { positionTransformer?: IPositionTransformer } = { }) {
+  constructor(bot: Bot, options: { positionTransformer?: IPositionTransformer } = {}) {
     this.bot = bot
     this.positionTransformer = options.positionTransformer
   }
@@ -445,12 +445,49 @@ export class FakeSpectator {
     if (this.positionTransformer) {
       const result = this.positionTransformer.onSToCPacket(name, data)
       if (!result) return
-      if (result && result.length > 1) return 
+      if (result && result.length > 1) return
       const [transformedName, transformedData] = result[0]
       client.write(transformedName, transformedData)
     } else {
       client.write(name, data)
     }
+  }
+
+  private addToTab(client: ServerClient | Client, gamemode: number, name: string) {
+    this.writeRaw(client, 'player_info', {
+      action: 0,
+      data: [{
+        UUID: client.uuid,
+        name,
+        properties: [],
+        gamemode,
+        ping: 0
+      }]
+    })
+  }
+
+  private makeInvisible(client: Client | ServerClient) {
+    this.writeRaw(client, 'entity_metadata', {
+      entityId: this.bot.entity.id,
+      metadata: [
+      //   {
+      //   key: 13, type: 0, value: 127
+      // }, 
+      {
+        key: 0, type: 0, value: 32
+      }]
+    })
+  }
+
+  private makeVisible(client: ServerClient | Client) {
+    this.writeRaw(client, 'entity_metadata', {
+      entityId: this.bot.entity.id,
+      metadata: [{
+        key: 0,
+        type: 0,
+        value: 0
+      }]
+    })
   }
 
   makeSpectator(client: ServerClient) {
@@ -470,6 +507,8 @@ export class FakeSpectator {
       reason: 3, // https://wiki.vg/index.php?title=Protocol&oldid=14204#Change_Game_State
       gameMode: 3
     })
+    this.makeInvisible(client)
+    this.addToTab(client, 3, '[You] ' + client.username)
   }
   revertToNormal(client: ServerClient) {
     this.writeRaw(client, 'position', {
@@ -484,6 +523,9 @@ export class FakeSpectator {
       reason: 3, // https://wiki.vg/index.php?title=Protocol&oldid=14204#Change_Game_State
       gameMode: FakePlayer.gameModeToNotchian(this.bot.game.gameMode)
     })
+    this.writeRaw(client, a.name, a.data)
+    this.addToTab(client, 0, client.username)
+    this.makeVisible(client)
   }
   tpToOrigin(client: Client | ServerClient) {
     this.writeRaw(client, 'position', {
@@ -536,7 +578,7 @@ export class FakeSpectator {
     })
     this.clientsInCamera[client.uuid].cleanup()
     this.clientsInCamera[client.uuid].status = false
-    this.clientsInCamera[client.uuid].cleanup = () => {}
+    this.clientsInCamera[client.uuid].cleanup = () => { }
     return true
   }
 }
@@ -586,7 +628,7 @@ function createTask() {
   return task
 }
 
-export function onceWithCleanup (emitter: EventEmitter, event: string, { timeout = 0, checkCondition = undefined }: { timeout?: number, checkCondition?: Function } = {}): Promise<unknown> {
+export function onceWithCleanup(emitter: EventEmitter, event: string, { timeout = 0, checkCondition = undefined }: { timeout?: number, checkCondition?: Function } = {}): Promise<unknown> {
   const task = createTask()
 
   const onEvent = (...data: any[]) => {
@@ -609,7 +651,7 @@ export function onceWithCleanup (emitter: EventEmitter, event: string, { timeout
     })
   }
 
-  task.promise.finally(() => emitter.removeListener(event, onEvent)).catch(err => {})
+  task.promise.finally(() => emitter.removeListener(event, onEvent)).catch(err => { })
 
   return task.promise
 }
