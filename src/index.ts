@@ -301,7 +301,7 @@ export class InspectorProxy extends EventEmitter {
     }
   }
 
-  unlink(client?: Client | ServerClient) {
+  unlink(client: Client | ServerClient | null) {
     if (!this.conn) return
     if (client) {
       if (client !== this.conn.pclient) {
