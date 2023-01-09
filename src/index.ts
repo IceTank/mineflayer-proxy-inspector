@@ -301,7 +301,7 @@ export class InspectorProxy extends EventEmitter {
     }
   }
 
-  unlink(client: Client | ServerClient | null) {
+  unlink(client?: Client | ServerClient) {
     if (!this.conn) return
     if (client) {
       if (client !== this.conn.pclient) {
@@ -312,12 +312,9 @@ export class InspectorProxy extends EventEmitter {
       this.fakeSpectator?.makeSpectator(client as unknown as ServerClient)
       this.message(client, 'Unlinking')
     }
-    this.conn?.unlink()
-    this.conn.bot.proxy.botIsControlling = true
-    setTimeout().then(() => {
-      if (!this.conn) return
-      this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
-    })
+    this.conn.unlink()
+    this.conn.stateData.bot.proxy.botIsControlling = true
+    this.conn.bot.proxy.emitter.emit('proxyBotTookControl')
   }
 
   async sendPackets(client: Client) {
