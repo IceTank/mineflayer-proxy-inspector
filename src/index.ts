@@ -50,6 +50,8 @@ export interface ProxyOptions {
   toServerMiddlewares?: PacketMiddleware[]
   disabledCommands?: boolean
 
+  worldCaching?: boolean
+
   positionOffset?: Vec3
 }
 
@@ -88,7 +90,7 @@ export interface InspectorProxy {
 export class InspectorProxy extends EventEmitter {
   options: BotOptions
   proxyOptions: ProxyOptions
-  worldManager: WorldManager
+  worldManager?: WorldManager
   conn?: Conn
   server: Server | undefined
   fakePlayer?: FakePlayer
@@ -100,17 +102,6 @@ export class InspectorProxy extends EventEmitter {
 
   constructor(options: BotOptions, proxyOptions: ProxyOptions = {}) {
     super()
-    if (proxyOptions.positionOffset) {
-      const positionTransformer = new SimplePositionTransformer(proxyOptions.positionOffset)
-      this.worldManager = new WorldManager('worlds', { positionTransformer })
-    } else {
-      this.worldManager = new WorldManager('worlds')
-    }
-    this.options = {
-      ...options,
-      // @ts-ignore
-      storageBuilder: this.worldManager.onStorageBuilder()
-    }
     this.proxyOptions = proxyOptions
     this.server = undefined
     this.blockedPacketsWhenNotInControl = ['abilities', 'position']
@@ -124,11 +115,28 @@ export class InspectorProxy extends EventEmitter {
     this.proxyOptions.autoStartBotOnServerLogin ??= true
     this.proxyOptions.disconnectAllOnEnd ??= true
 
+    this.proxyOptions.worldCaching ??= true
+
     this.proxyOptions.startOnLogin ??= true
     this.proxyOptions.stopOnLogoff ??= false
 
     this.proxyOptions.logPlayerJoinLeave ??= false
     
+    if (this.proxyOptions.worldCaching) {
+      if (this.proxyOptions.positionOffset) {
+        const positionTransformer = new SimplePositionTransformer(this.proxyOptions.positionOffset)
+        this.worldManager = new WorldManager('worlds', { positionTransformer })
+      } else {
+        this.worldManager = new WorldManager('worlds')
+      }
+    }
+
+    this.options = {
+      ...options,
+      // @ts-ignore
+      storageBuilder: this.worldManager ? this.worldManager.onStorageBuilder() : undefined
+    }
+
     if (this.proxyOptions.botAutoStart || !this.proxyOptions.startOnLogin) {
       this.startBot()
     }
@@ -171,7 +179,7 @@ export class InspectorProxy extends EventEmitter {
     }
     console.info('Starting bot')
     let offset: Vec3 | undefined = undefined
-    if (this.proxyOptions.positionOffset) {
+    if (this.worldManager && this.proxyOptions.positionOffset) {
       offset = this.proxyOptions.positionOffset
     }
     const conn = new Conn(this.options, {
@@ -413,17 +421,22 @@ export class InspectorProxy extends EventEmitter {
     if (this.proxyOptions.logPlayerJoinLeave) {
       console.info(`Player ${client.username} joined the proxy`)
     }
-    
-    const managedPlayer = this.worldManager.newManagedPlayer(client, this.conn.bot.entity.position)
-    managedPlayer.loadedChunks = this.conn.bot.world.getColumns().map(({ chunkX, chunkZ }:  {chunkX: number, chunkZ: number}) => new Vec3(chunkX * 16, 0, chunkZ * 16))
-    this.conn.bot.on('spawn', () => {
-      if (!this.conn?.bot) return
-      managedPlayer.positionReference = this.conn.bot.entity.position
-    })
+
     this.conn.stateData.bot.physicsEnabled = false
-    this.attach(client, {
-      toClientMiddleware: [...managedPlayer.getMiddlewareToClient()]
-    })
+    
+    if (this.worldManager) {
+      const managedPlayer = this.worldManager.newManagedPlayer(client, this.conn.bot.entity.position)
+      managedPlayer.loadedChunks = this.conn.bot.world.getColumns().map(({ chunkX, chunkZ }:  {chunkX: number, chunkZ: number}) => new Vec3(chunkX * 16, 0, chunkZ * 16))
+      this.conn.bot.on('spawn', () => {
+        if (!this.conn?.bot) return
+        managedPlayer.positionReference = this.conn.bot.entity.position
+      })
+      this.attach(client, {
+        toClientMiddleware: [...managedPlayer.getMiddlewareToClient()]
+      })
+    } else {
+      this.attach(client)
+    }
     await this.sendPackets(client as unknown as Client)
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.pclient
@@ -517,6 +530,10 @@ export class InspectorProxy extends EventEmitter {
             this.fakeSpectator?.revertPov(pclient)
             this.fakeSpectator?.tpToOrigin(pclient)
           } else if (cmd.startsWith('viewdistance')) {
+            if (!this.worldManager) {
+              this.message(pclient, 'World caching not enabled')
+              return
+            }
             const words = cmd.split(' ')
             if (words[1] === 'disable') {
               this.message(pclient, 'Disabling extended render distance')
@@ -531,6 +548,10 @@ export class InspectorProxy extends EventEmitter {
             this.worldManager.setClientView(pclient, chunkViewDistance)
             // this.worldManager.test(this.conn.bot.entity.position, this.worldManager.worlds['minecraft_overworld'], viewDistance)
           } else if (cmd === 'reloadchunks') {
+            if (!this.worldManager) {
+              this.message(pclient, 'World caching not enabled')
+              return
+            }
             this.message(pclient, 'Reloading chunks', true, true)
             this.worldManager.reloadClientChunks(pclient, 2)
           } else {
