@@ -508,7 +508,7 @@ export class FakeSpectator {
       gameMode: 3
     })
     this.makeInvisible(client)
-    this.addToTab(client, 3, '[You] ' + client.username)
+    this.addToTab(client, 3, client.username)
   }
   revertToNormal(client: ServerClient) {
     this.writeRaw(client, 'position', {
