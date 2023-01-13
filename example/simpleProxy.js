@@ -16,7 +16,8 @@ const proxy = new InspectorProxy({
   serverAutoStart: true, // start the server when the proxy starts
   serverStopOnBotStop: false, // Stop the server when the bot stops
   autoStartBotOnServerLogin: true,
-  positionOffset: new Vec3(5000, 0, 0)
+  positionOffset: new Vec3(5000, 0, 0),
+  worldCaching: false
 })
 
 proxy.on('clientDisconnect', () => {
