@@ -179,7 +179,7 @@ export class InspectorProxy extends EventEmitter {
     }
     console.info('Starting bot')
     let offset: Vec3 | undefined = undefined
-    if (this.worldManager && this.proxyOptions.positionOffset) {
+    if (this.proxyOptions.positionOffset) {
       offset = this.proxyOptions.positionOffset
     }
     const conn = new Conn(this.options, {
