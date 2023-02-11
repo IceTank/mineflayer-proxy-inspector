@@ -421,8 +421,6 @@ export class InspectorProxy extends EventEmitter {
     if (this.proxyOptions.logPlayerJoinLeave) {
       console.info(`Player ${client.username} joined the proxy`)
     }
-
-    this.conn.stateData.bot.physicsEnabled = false
     
     if (this.worldManager) {
       const managedPlayer = this.worldManager.newManagedPlayer(client, this.conn.bot.entity.position)
