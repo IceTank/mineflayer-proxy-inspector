@@ -141,90 +141,6 @@ export class FakePlayer {
         entityId: FakePlayer.fakePlayerId,
         headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
       })
-
-      // Yeah like this does not work
-      // const diff = this.bot.entity.position.minus(knownPosition)
-      // const maxDelta = 7 // 1.12.2 Specific
-      // const lookChanged = this.fakePlayerEntity.yaw !== this.bot.entity.yaw || this.fakePlayerEntity.pitch !== this.bot.entity.pitch
-      // if (diff.distanceTo(new Vec3(0, 0, 0)) !== 0) {
-      //   // Player models are glitching through the ground with relative movement updates
-      //   if (true || diff.abs().x > maxDelta || diff.abs().y > maxDelta || diff.abs().z > maxDelta) {
-      //     let entityPosition = position // 1.12.2 Specific   
-      //     this.fakePlayerEntity.knownPosition = position
-      //     this.fakePlayerEntity.onGround = this.bot.entity.onGround
-      //     this.fakePlayerEntity.yaw = this.bot.entity.yaw
-      //     this.fakePlayerEntity.pitch = this.bot.entity.pitch
-
-      //     console.info('Bot pos', entityPosition.toString())
-
-      //     writeIfSpawned('entity_teleport', {
-      //       entityId: FakePlayer.fakePlayerId,
-      //       x: entityPosition.x,
-      //       y: entityPosition.y,
-      //       z: entityPosition.z,
-      //       yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
-      //       pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
-      //       // onGround: this.bot.entity.onGround
-      //       onGround: false
-      //     })
-      //     this.fakePlayerEntity.lastSendPos = performance.now()
-      //   } else if (!lookChanged) {
-      //     // 1.12.2 specific
-      //     const delta = diff.scaled(32).scaled(128).floored()
-      //     this.fakePlayerEntity.knownPosition = this.bot.entity.position.plus(delta.scaled(1 / 32 / 128))
-      //     this.fakePlayerEntity.knownPosition = position
-      //     this.fakePlayerEntity.onGround = this.bot.entity.onGround
-
-      //     writeIfSpawned('rel_entity_move', {
-      //       entityId: FakePlayer.fakePlayerId,
-      //       dX: delta.x,
-      //       dY: delta.y,
-      //       dZ: delta.z,
-      //       // onGround: this.bot.entity.onGround
-      //       onGround: false
-      //     })
-      //   } else if (lookChanged) {
-      //     // 1.12.2 specific
-      //     const delta = diff.scaled(32).scaled(128).floored()
-      //     this.fakePlayerEntity.knownPosition = this.bot.entity.position.plus(delta.scaled(1 / 32 / 128))
-      //     this.fakePlayerEntity.knownPosition = position
-      //     this.fakePlayerEntity.onGround = this.bot.entity.onGround
-      //     this.fakePlayerEntity.yaw = this.bot.entity.yaw
-      //     this.fakePlayerEntity.pitch = this.bot.entity.pitch
-
-      //     writeIfSpawned('entity_move_look', {
-      //       entityId: FakePlayer.fakePlayerId,
-      //       dX: delta.x,
-      //       dY: delta.y,
-      //       dZ: delta.z,
-      //       yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
-      //       pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
-      //       // onGround: this.bot.entity.onGround
-      //       onGround: false
-      //     })
-      //     writeIfSpawned('entity_head_rotation', {
-      //       entityId: FakePlayer.fakePlayerId,
-      //       headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
-      //     })
-      //   }
-      // } else {
-      //   const { yaw, pitch, onGround } = this.bot.entity
-      //   if (yaw === this.fakePlayerEntity.yaw && pitch === this.fakePlayerEntity.pitch) return
-      //   this.fakePlayerEntity.onGround = onGround
-      //   this.fakePlayerEntity.yaw = yaw
-      //   this.fakePlayerEntity.pitch = pitch
-
-      //   writeIfSpawned('entity_look', {
-      //     entityId: FakePlayer.fakePlayerId,
-      //     yaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127),
-      //     pitch: -Math.floor(((this.bot.entity.pitch / Math.PI) * 128) % 256),
-      //     onGround: this.bot.entity.onGround
-      //   })
-      //   writeIfSpawned('entity_head_rotation', {
-      //     entityId: FakePlayer.fakePlayerId,
-      //     headYaw: -(Math.floor(((this.bot.entity.yaw / Math.PI) * 128 + 255) % 256) - 127)
-      //   })
-      // }
     }
     this.listenerForceMove = () => {
       this.fakePlayerEntity.knownPosition = this.bot.entity.position
@@ -244,7 +160,7 @@ export class FakePlayer {
     this.listenerInventory = () => {
       this.connectedClients.forEach(c => {
         if (!this.isSpawnedMap[c.uuid]) return
-        this.updateEquipment(c)
+        this.writeFakePlayerEquipment(c)
       })
     }
     this.listenerWorldLeave = () => {
@@ -312,7 +228,7 @@ export class FakePlayer {
           console.warn('Skin lookup failed for', this.uuid)
         }
       } catch (err) {
-        console.error('Skin lookup failed', err, 'UUID:', this.uuid)
+        // console.error('Skin lookup failed', err, 'UUID:', this.uuid)
       }
     }
     // console.info('Player profile', p)
@@ -328,40 +244,35 @@ export class FakePlayer {
     })
   }
 
-  updateEquipment(client: ServerClient) {
-    const NotchItemEqual = (item1?: NotchItem, item2?: NotchItem) => {
-      item1 = item1 ?? {}
-      item2 = item2 ?? {}
-      return JSON.stringify(item1) === JSON.stringify(item2)
-    }
+  writeFakePlayerEquipment(client: ServerClient) {
+    // const NotchItemEqual = (item1?: NotchItem, item2?: NotchItem) => {
+    //   item1 = item1 ?? {}
+    //   item2 = item2 ?? {}
+    //   return JSON.stringify(item1) === JSON.stringify(item2)
+    // }
 
     this.bot.updateHeldItem()
     const mainHand = this.bot.heldItem ? this.pItem.toNotch(this.bot.heldItem) : NoneItemData
     const offHand = this.bot.inventory.slots[45] ? this.pItem.toNotch(this.bot.inventory.slots[45]) : NoneItemData
     // Main hand
-    if (!NotchItemEqual(mainHand, this.fakePlayerEntity.mainHand)) {
-      this.writeRaw(client, 'entity_equipment', {
-        entityId: FakePlayer.fakePlayerId,
-        slot: 0,
-        item: mainHand
-      })
-      this.fakePlayerEntity.mainHand = mainHand
-    }
+    this.writeRaw(client, 'entity_equipment', {
+      entityId: FakePlayer.fakePlayerId,
+      slot: 0,
+      item: mainHand
+    })
+    this.fakePlayerEntity.mainHand = mainHand
     // Off-Hand
-    if (!NotchItemEqual(offHand, this.fakePlayerEntity.offHand)) {
-      this.writeRaw(client, 'entity_equipment', {
-        entityId: FakePlayer.fakePlayerId,
-        slot: 1,
-        item: offHand
-      })
-      this.fakePlayerEntity.offHand = offHand
-    }
+    this.writeRaw(client, 'entity_equipment', {
+      entityId: FakePlayer.fakePlayerId,
+      slot: 1,
+      item: offHand
+    })
+    this.fakePlayerEntity.offHand = offHand
     // Armor
     const equipmentMap = [5, 4, 3, 2]
     for (let i = 0; i < 4; i++) {
       // Armor slots start at 5
       const armorItem = this.bot.inventory.slots[i + 5] ? this.pItem.toNotch(this.bot.inventory.slots[i + 5]) : NoneItemData
-      if (NotchItemEqual(armorItem, this.fakePlayerEntity.armor[i])) continue
       this.writeRaw(client, 'entity_equipment', {
         entityId: FakePlayer.fakePlayerId,
         slot: equipmentMap[i],
@@ -385,7 +296,7 @@ export class FakePlayer {
       }]
     })
 
-    this.updateEquipment(client)
+    this.writeFakePlayerEquipment(client)
 
     this.writeRaw(client, 'entity_look', {
       entityId: FakePlayer.fakePlayerId,
