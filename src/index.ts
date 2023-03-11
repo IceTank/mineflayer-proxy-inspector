@@ -45,6 +45,8 @@ export interface ProxyOptions {
   logPlayerJoinLeave?: boolean
   /** Disconnect all connected players once the proxy bot stops. Defaults to true. If not on players will still be connected but won't receive updates from the server. */
   disconnectAllOnEnd?: boolean
+  /** Print the $help chat messages when a client loges into the proxy. Defaults to true. */
+  printHelpOnClientLogin?: boolean
 
   toClientMiddlewares?: PacketMiddleware[]
   toServerMiddlewares?: PacketMiddleware[]
@@ -121,6 +123,7 @@ export class InspectorProxy extends EventEmitter {
     this.proxyOptions.stopOnLogoff ??= false
 
     this.proxyOptions.logPlayerJoinLeave ??= false
+    this.proxyOptions.printHelpOnClientLogin ??= true
     
     if (this.proxyOptions.worldCaching) {
       if (this.proxyOptions.positionOffset) {
@@ -439,7 +442,7 @@ export class InspectorProxy extends EventEmitter {
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.pclient
     this.broadcastMessage(`User §3${client.username}§r logged in. ${connect ? 'He is in control' : 'He is not in control'}`)
-    this.printHelp(client)
+    if (this.proxyOptions.printHelpOnClientLogin) this.printHelp(client)
 
     if (!connect) {
       // @ts-ignore
