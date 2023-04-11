@@ -39,6 +39,7 @@ Makes a new Inspector Proxy class.
   - `disabledCommands` Optional. Defaults to `false`. Disables all in game commands.
   - `toClientMiddlewares` Optional. Array off additional middlewares to register for each client's packets going from server to client.
   - `toServerMiddlewares` Optional. Array off additional middlewares to register for each client's packets going from client to server.
+  - `worldCaching` Optional. Defaults to `true`. If `false` deactivates world caching.
 
 ### `botIsInControl()`
 Returns true when no client is currently controlling the proxy

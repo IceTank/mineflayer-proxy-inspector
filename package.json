@@ -1,6 +1,6 @@
 {
   "name": "mineflayer-proxy-inspector",
-  "version": "1.11.1",
+  "version": "2.0.2",
   "description": "Package for inspecting mineflayer bots as fake players in-game",
   "main": "dist/index.js",
   "scripts": {
@@ -13,11 +13,16 @@
   "author": "Ic3Tank",
   "license": "ISC",
   "dependencies": {
-    "@rob9315/mcproxy": "github:IceTank/mcproxy-1#076c4a11584b2d3e78577bb2979afd01c6e2b611",
+    "@icetank/mcproxy": "^1.0.0",
     "minecraft-protocol": "^1.35.0",
-    "mineflayer": "^4.2.0"
+    "mineflayer": "^4.2.0",
+    "prismarine-provider-anvil": "^2.7.0",
+    "prismarine-world": "^3.6.1"
   },
   "devDependencies": {
     "@types/node": "^16.11.13"
+  },
+  "resolutions": {
+    "mineflayer/prismarine-world": "IceTank/prismarine-world.git#storage-provider-save-fix"
   }
 }
