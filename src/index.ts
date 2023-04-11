@@ -85,6 +85,7 @@ export interface InspectorProxy {
   on(event: 'botStart', listener: (conn: Conn) => void): this
   on(event: 'botReady', listener: (conn: Conn) => void): this
   on(event: 'botEnd', listener: (conn?: Conn) => void): this
+  on(event: 'botError', listener: (err: unknown) => void): this
   on(event: 'serverStart', listener: () => void): this
   on(event: 'serverClose', listener: () => void): this
 }
@@ -394,6 +395,11 @@ export class InspectorProxy extends EventEmitter {
         this.stopServer()
       }
       this.stopBot()
+    })
+
+    this.conn.stateData.bot.on('error', (err) => {
+      this.stopBot()
+      this.emit('botError', err)
     })
   }
 
