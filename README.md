@@ -7,9 +7,6 @@ Creates a mineflayer bot that acts as a proxy at the same time. Works with 1.12.
 2. Install [yarn](https://yarnpkg.com/) (npm may not work)
 2. Run `yarn add mineflayer-proxy-inspector` to add it to your project
 
-## Note
-Currently requires a special fork off [mcproxy](https://github.com/rob9315/mcproxy) that can be found [here](https://github.com/IceTank/mcproxy-1/tree/middleware)
-
 # Features
 - World persistance (World is loaded from the bots memory when joining)
 - Real time packet interception and editing
