@@ -1,12 +1,12 @@
 import path from "path";
 import fs from 'fs'
 import { Vec3, default as VectorBuilder } from 'vec3'
-import { PacketMiddleware } from "@rob9315/mcproxy";
+import { PacketMiddleware } from "@icetank/mcproxy";
 import { Client } from 'minecraft-protocol'
 import { setTimeout } from 'timers/promises'
 const { SpiralIterator2d } = require("prismarine-world").iterators
-import { IPositionTransformer } from "@rob9315/mcproxy/lib/positionTransformer";
-import { chunkColumnToPacketsWithOffset } from '@rob9315/mcproxy/lib/packets'
+import { IPositionTransformer } from "@icetank/mcproxy/lib/positionTransformer";
+import { chunkColumnToPacketsWithOffset } from '@icetank/mcproxy/lib/packets'
 
 export class WorldManager {
   savePath: string

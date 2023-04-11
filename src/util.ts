@@ -4,12 +4,12 @@ import { Bot, GameState } from "mineflayer";
 import { performance } from "perf_hooks";
 import { Item as ItemType, NotchItem } from "prismarine-item";
 import Item from "prismarine-item";
-import { packetAbilities } from "@rob9315/mcproxy";
+import { packetAbilities } from "@icetank/mcproxy";
 const fetch = require('node-fetch')
 const ChatMessage = require('prismarine-chat')('1.12.2')
 import { EventEmitter } from 'events'
 import { setTimeout as timeoutPromise } from 'timers/promises'
-import { IPositionTransformer } from "@rob9315/mcproxy/lib/positionTransformer";
+import { IPositionTransformer } from "@icetank/mcproxy/lib/positionTransformer";
 
 const NoneItemData = {
   blockId: -1,
