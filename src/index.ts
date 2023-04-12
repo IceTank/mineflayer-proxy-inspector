@@ -212,14 +212,14 @@ export class InspectorProxy extends EventEmitter {
     this.stopBot()
   }
 
-  stopBot() {
+  stopBot(message: string = 'Proxy disconnected') {
     if (this.conn === undefined) {
       return
     }
     this.fakePlayer?.destroy()
     if (this.proxyOptions.disconnectAllOnEnd) {
         this.conn.pclients.forEach((c) => {
-        c.end('Proxy disconnected')
+        c.end(message)
       })
     }
     this.conn.disconnect()
@@ -238,8 +238,11 @@ export class InspectorProxy extends EventEmitter {
    * Stops the hosted server
    * @returns 
    */
-  stopServer() {
+  stopServer(message: string = 'Proxy server closed') {
     if (!this.server) return
+    Object.values(this.server.clients).forEach((c) => {
+      c.end(message)
+    })
     this.server.close()
     this.server = undefined
     this.emit('serverClose')
