@@ -2,7 +2,7 @@ import { Vec3 } from "vec3";
 import { Client, ServerClient } from "minecraft-protocol";
 import { Bot, GameState } from "mineflayer";
 import { performance } from "perf_hooks";
-import { Item as ItemType, NotchItem } from "prismarine-item";
+import { Item as ItemType } from "prismarine-item";
 import Item from "prismarine-item";
 import { packetAbilities } from "@icetank/mcproxy";
 const fetch = require('node-fetch')
@@ -26,9 +26,9 @@ class FakeEntity {
   oldYaw: number
   oldPitch: number
   onGround: boolean
-  mainHand?: NotchItem
-  offHand?: NotchItem
-  armor: Array<NotchItem | undefined>
+  mainHand?: object
+  offHand?: object
+  armor: Array<object | undefined>
   constructor(pos: Vec3, yaw: number, pitch: number) {
     this.knownPosition = pos
     this.yaw = yaw
@@ -245,7 +245,7 @@ export class FakePlayer {
   }
 
   writeFakePlayerEquipment(client: ServerClient) {
-    // const NotchItemEqual = (item1?: NotchItem, item2?: NotchItem) => {
+    // const objectEqual = (item1?: object, item2?: object) => {
     //   item1 = item1 ?? {}
     //   item2 = item2 ?? {}
     //   return JSON.stringify(item1) === JSON.stringify(item2)
