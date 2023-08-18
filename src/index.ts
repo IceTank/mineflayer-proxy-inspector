@@ -18,6 +18,16 @@ type allowListCallback = (username: string) => boolean
 export interface ProxyOptions {
   port?: number
   motd?: string
+  /** 
+   * Version to use. 
+   * @default 1.19.4
+   */
+  version?: '1.12.2' | '1.19.4'
+  /**
+   * Spawn a fake player when not in control.
+   * @default true
+   */
+  spawnFakePlayer?: boolean
   security?: {
     onlineMode?: boolean
     /** Optional. If not set all players are allowed to join. Either a list off players allowed to connect to the proxy or a function that returns a boolean value. */
@@ -107,6 +117,8 @@ export class InspectorProxy extends EventEmitter {
     super()
     this.proxyOptions = proxyOptions
     this.server = undefined
+    this.proxyOptions.version ??= '1.19.4'
+    this.proxyOptions.spawnFakePlayer = proxyOptions.spawnFakePlayer ?? true
     this.blockedPacketsWhenNotInControl = ['abilities', 'position']
 
     this.proxyOptions.botAutoStart ??= true
@@ -186,7 +198,10 @@ export class InspectorProxy extends EventEmitter {
     if (this.proxyOptions.positionOffset) {
       offset = this.proxyOptions.positionOffset
     }
-    const conn = new Conn(this.options, {
+    const conn = new Conn({
+      ...this.options,
+      version: this.proxyOptions.version ?? '1.19.4',
+    }, {
       toClientMiddleware: [...this.genToClientMiddleware(), ...(this.proxyOptions.toClientMiddlewares || [])],
       toServerMiddleware: [...this.genToServerMiddleware(), ...(this.proxyOptions.toServerMiddlewares || [])],
       positionTransformer: offset
@@ -217,6 +232,8 @@ export class InspectorProxy extends EventEmitter {
       return
     }
     this.fakePlayer?.destroy()
+    this.fakePlayer = undefined
+    this.fakeSpectator = undefined
     if (this.proxyOptions.disconnectAllOnEnd) {
         this.conn.pclients.forEach((c) => {
         c.end(message)
@@ -257,7 +274,7 @@ export class InspectorProxy extends EventEmitter {
       motd: motd,
       'online-mode': this.proxyOptions.security?.onlineMode ?? false,
       port: this.proxyOptions.port ?? 25566,
-      version: '1.12.2',
+      version: this.proxyOptions.version ?? '1.19.4',
       hideErrors: true
     })
 
@@ -298,7 +315,7 @@ export class InspectorProxy extends EventEmitter {
     }
     
     if (!this.conn.pclient) {
-      this.message(client, 'Linking')
+      // this.message(client, 'Linking')
       this.conn.link(client as unknown as Client)
       this.conn.bot.proxy.botIsControlling = !this.conn.pclient
 
@@ -376,12 +393,14 @@ export class InspectorProxy extends EventEmitter {
 
     this.conn.bot.once('login', () => {
       if (!this.conn) return
-      this.fakePlayer = new FakePlayer(this.conn.stateData.bot, {
-        username: this.conn.bot.username,
-        uuid: this.conn.bot._client.uuid,
-        positionTransformer: this.conn.positionTransformer
-      })
-      this.fakeSpectator = new FakeSpectator(this.conn.bot, { positionTransformer: this.conn.positionTransformer })
+      if (this.proxyOptions.spawnFakePlayer) {
+        this.fakePlayer = new FakePlayer(this.conn.stateData.bot, {
+          username: this.conn.bot.username,
+          uuid: this.conn.bot._client.uuid,
+          positionTransformer: this.conn.positionTransformer
+        })
+        this.fakeSpectator = new FakeSpectator(this.conn.bot, { positionTransformer: this.conn.positionTransformer })
+      }
       if (this.proxyOptions.serverAutoStart) {
         if (!this.server) this.startServer()
       }
