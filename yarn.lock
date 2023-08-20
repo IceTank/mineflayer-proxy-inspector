@@ -16,9 +16,9 @@
     jsonwebtoken "^9.0.0"
     uuid "^8.3.0"
 
-"@icetank/mcproxy@IceTank/mcproxy.git#1-19":
+"@icetank/mcproxy@IceTank/mcproxy.git#941a9c7f6004428e87c72150b0b91686b4b232fa":
   version "1.0.3"
-  resolved "https://codeload.github.com/IceTank/mcproxy/tar.gz/d8eb66108f45053a38ded1c2ae02611c17226878"
+  resolved "https://codeload.github.com/IceTank/mcproxy/tar.gz/941a9c7f6004428e87c72150b0b91686b4b232fa"
   dependencies:
     deepcopy "^2.1.0"
     mineflayer "^4.11.0"
