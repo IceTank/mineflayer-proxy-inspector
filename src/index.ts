@@ -1,7 +1,9 @@
 import { Client, Conn, PacketMiddleware, packetAbilities, sendTo, SimplePositionTransformer } from "@icetank/mcproxy";
 import { createServer, ServerClient } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
-import { FakeSpectator, FakePlayer, sendMessage, sleep, onceWithCleanup } from "./util";
+import { sendMessage, sleep, onceWithCleanup } from "./util";
+import { FakePlayer } from "./FakePlayer";
+import { FakeSpectator } from "./FakeSpectator";
 import { BotOptions } from "mineflayer";
 import EventEmitter, { once } from "events";
 import { setTimeout } from "timers/promises";
@@ -315,7 +317,7 @@ export class InspectorProxy extends EventEmitter {
     }
     
     if (!this.conn.pclient) {
-      // this.message(client, 'Linking')
+      this.message(client, 'Linking')
       this.conn.link(client as unknown as Client)
       this.conn.bot.proxy.botIsControlling = !this.conn.pclient
 
@@ -528,8 +530,9 @@ export class InspectorProxy extends EventEmitter {
     const inspector_toServerMiddleware: PacketMiddleware = ({ meta, pclient, data, isCanceled }) => {
       if (!this.conn || !pclient) return
       let returnValue: false | undefined = undefined
-      if (meta.name === 'chat' && !this.proxyOptions.disabledCommands) {
+      if (meta.name === 'chat_message' && !this.proxyOptions.disabledCommands) {
         this.emit('clientChatRaw', pclient, data.message)
+        console.info('Chat message', data.message)
         let isCommand = false
         if ((data.message as string).startsWith('$')) { // command
           returnValue = false // Cancel everything that starts with $
@@ -593,8 +596,6 @@ export class InspectorProxy extends EventEmitter {
           returnValue = undefined
         }
         return data
-      } else if (meta.name === 'use_entity') {
-        return
       } else if (meta.name === 'use_entity') {
         if (this.fakeSpectator?.clientsInCamera[pclient.uuid] && this.fakeSpectator?.clientsInCamera[pclient.uuid].status) {
           if (data.mouse === 0 || data.mouse === 1) {
