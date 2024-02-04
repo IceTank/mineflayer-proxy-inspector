@@ -13,16 +13,13 @@
   "author": "Ic3Tank",
   "license": "ISC",
   "dependencies": {
-    "@icetank/mcproxy": "IceTank/mcproxy.git#941a9c7f6004428e87c72150b0b91686b4b232fa",
+    "@icetank/mcproxy": "^1.0.5",
     "minecraft-protocol": "^1.35.0",
     "mineflayer": "^4.2.0",
     "prismarine-provider-anvil": "^2.7.0",
-    "prismarine-world": "^3.6.1"
+    "prismarine-world": "^3.6.2"
   },
   "devDependencies": {
     "@types/node": "^16.11.13"
-  },
-  "resolutions": {
-    "mineflayer/prismarine-world": "IceTank/prismarine-world.git#storage-provider-save-fix"
   }
 }

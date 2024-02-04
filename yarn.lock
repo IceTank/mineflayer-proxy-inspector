@@ -16,9 +16,10 @@
     jsonwebtoken "^9.0.0"
     uuid "^8.3.0"
 
-"@icetank/mcproxy@IceTank/mcproxy.git#941a9c7f6004428e87c72150b0b91686b4b232fa":
-  version "1.0.3"
-  resolved "https://codeload.github.com/IceTank/mcproxy/tar.gz/941a9c7f6004428e87c72150b0b91686b4b232fa"
+"@icetank/mcproxy@^1.0.5":
+  version "1.0.5"
+  resolved "https://registry.yarnpkg.com/@icetank/mcproxy/-/mcproxy-1.0.5.tgz#fcec02d2fcb8ba0c5b8e8999eb10c9584c1e6704"
+  integrity sha512-AWLtk2ue2gCtvMFpfCL43v/OtxRsQcA/DjDMULUzP+nNUJVOpITBGCVvogsBME55nLLCGChSk7H/oYUiJeey0g==
   dependencies:
     deepcopy "^2.1.0"
     mineflayer "^4.11.0"
@@ -484,13 +485,7 @@ prismarine-windows@^2.8.0:
     prismarine-registry "^1.7.0"
     typed-emitter "^2.1.0"
 
-prismarine-world@IceTank/prismarine-world.git#storage-provider-save-fix:
-  version "3.6.1"
-  resolved "https://codeload.github.com/IceTank/prismarine-world/tar.gz/707c62437b9faec648bf0f4300fcd7feecbf238f"
-  dependencies:
-    vec3 "^0.1.7"
-
-prismarine-world@^3.6.0, prismarine-world@^3.6.1:
+prismarine-world@^3.6.0, prismarine-world@^3.6.2:
   version "3.6.2"
   resolved "https://registry.yarnpkg.com/prismarine-world/-/prismarine-world-3.6.2.tgz#344ab67e90246daabc467db36d98e1dd09f4f207"
   integrity sha512-xNNo3bd8EnCMjiPbVrh3jYa1Upa8Krkb13BgO7FOOfD5ZYf+iYDZewBtDbHYWzZZB2N0JlTtimMOHRhZhDJirw==
