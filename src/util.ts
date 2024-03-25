@@ -2,7 +2,7 @@ import { Vec3 } from "vec3";
 import { Client, ServerClient } from "minecraft-protocol";
 import { Bot, GameState } from "mineflayer";
 import { performance } from "perf_hooks";
-import { Item as ItemType, NotchItem } from "prismarine-item";
+import { Item as ItemType } from "prismarine-item";
 import Item from "prismarine-item";
 import { packetAbilities } from "@icetank/mcproxy";
 const fetch = require('node-fetch')
@@ -17,6 +17,8 @@ const NoneItemData = {
   itemDamage: undefined,
   nbtData: undefined
 }
+
+type NotchItem = object
 
 class FakeEntity {
   knownPosition: Vec3
