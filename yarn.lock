@@ -16,10 +16,10 @@
     jsonwebtoken "^9.0.0"
     uuid "^8.3.0"
 
-"@icetank/mcproxy@^1.0.5":
-  version "1.0.5"
-  resolved "https://registry.yarnpkg.com/@icetank/mcproxy/-/mcproxy-1.0.5.tgz#fcec02d2fcb8ba0c5b8e8999eb10c9584c1e6704"
-  integrity sha512-AWLtk2ue2gCtvMFpfCL43v/OtxRsQcA/DjDMULUzP+nNUJVOpITBGCVvogsBME55nLLCGChSk7H/oYUiJeey0g==
+"@icetank/mcproxy@^1.0.0":
+  version "1.0.7"
+  resolved "https://registry.yarnpkg.com/@icetank/mcproxy/-/mcproxy-1.0.7.tgz#c87106878c4671abb9becdaf8dfbc2bfd8dd5bee"
+  integrity sha512-ohPvqZv9BYK5zmtCvPnCYXbxbXf2TcCAzOrFieSjK6PlOnw1Nh+v+TZWEnDMDSXAcTNI2uUeaWu3ExQ2ThKL9g==
   dependencies:
     deepcopy "^2.1.0"
     mineflayer "^4.11.0"
@@ -287,7 +287,7 @@ minecraft-protocol@^1.35.0, minecraft-protocol@^1.44.0:
     uuid-1345 "^1.0.1"
     yggdrasil "^1.4.0"
 
-mineflayer@^4.11.0, mineflayer@^4.2.0:
+mineflayer@^4.11.0:
   version "4.11.0"
   resolved "https://registry.yarnpkg.com/mineflayer/-/mineflayer-4.11.0.tgz#fb056e73627d68b0acddcecedafeb789b7b6ad24"
   integrity sha512-LFCpvqEcjvVG5U7SpkZybaT0h41yR9W9IWm/QTHM5VBn2VDGsB40zyyZpTOiOI4F57DoOxypGy8048jq5k4u2Q==
@@ -485,10 +485,23 @@ prismarine-windows@^2.8.0:
     prismarine-registry "^1.7.0"
     typed-emitter "^2.1.0"
 
-prismarine-world@^3.6.0, prismarine-world@^3.6.2:
+prismarine-world@IceTank/prismarine-world.git#storage-provider-save-fix:
+  version "3.6.1"
+  resolved "https://codeload.github.com/IceTank/prismarine-world/tar.gz/707c62437b9faec648bf0f4300fcd7feecbf238f"
+  dependencies:
+    vec3 "^0.1.7"
+
+prismarine-world@^3.6.0:
   version "3.6.2"
   resolved "https://registry.yarnpkg.com/prismarine-world/-/prismarine-world-3.6.2.tgz#344ab67e90246daabc467db36d98e1dd09f4f207"
   integrity sha512-xNNo3bd8EnCMjiPbVrh3jYa1Upa8Krkb13BgO7FOOfD5ZYf+iYDZewBtDbHYWzZZB2N0JlTtimMOHRhZhDJirw==
+  dependencies:
+    vec3 "^0.1.7"
+
+prismarine-world@^3.6.1:
+  version "3.6.3"
+  resolved "https://registry.yarnpkg.com/prismarine-world/-/prismarine-world-3.6.3.tgz#7be0ba41459b304a1f307d41e22ccbf813d6ea72"
+  integrity sha512-zqdqPEYCDHzqi6hglJldEO63bOROXpbZeIdxBmoQq7o04Lf81t016LU6stFHo3E+bmp5+xU74eDFdOvzYNABkA==
   dependencies:
     vec3 "^0.1.7"
 

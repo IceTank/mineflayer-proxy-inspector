@@ -4,7 +4,6 @@
   "description": "Package for inspecting mineflayer bots as fake players in-game",
   "main": "dist/index.js",
   "scripts": {
-    "install": "npm run build",
     "build": "tsc",
     "start": "tsc && node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -13,11 +12,11 @@
   "author": "Ic3Tank",
   "license": "ISC",
   "dependencies": {
-    "@icetank/mcproxy": "^1.0.5",
+    "@icetank/mcproxy": "^1.0.0",
     "minecraft-protocol": "^1.35.0",
-    "mineflayer": "^4.2.0",
+    "mineflayer": "^4.11.0",
     "prismarine-provider-anvil": "^2.7.0",
-    "prismarine-world": "^3.6.2"
+    "prismarine-world": "^3.6.1"
   },
   "devDependencies": {
     "@types/node": "^16.11.13"
