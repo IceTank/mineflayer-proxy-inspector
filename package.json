@@ -12,7 +12,7 @@
   "author": "Ic3Tank",
   "license": "ISC",
   "dependencies": {
-    "@icetank/mcproxy": "^1.0.0",
+    "@icetank/mcproxy": "^1.0.7",
     "minecraft-protocol": "^1.35.0",
     "mineflayer": "^4.11.0",
     "prismarine-provider-anvil": "^2.7.0",
