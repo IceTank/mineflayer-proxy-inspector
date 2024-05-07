@@ -15,7 +15,8 @@ import { Vec3 } from 'vec3'
 
 export { sendMessage }
 
-type allowListCallback = (username: string) => boolean
+/** Allowlist callback to check if a given player is allowed to join. PlayerUUID is lowercase. */
+type AllowListCallback = (username: string, playerUUID: string) => boolean
 
 export interface ProxyOptions {
   port?: number
@@ -33,7 +34,7 @@ export interface ProxyOptions {
   security?: {
     onlineMode?: boolean
     /** Optional. If not set all players are allowed to join. Either a list off players allowed to connect to the proxy or a function that returns a boolean value. */
-    allowList?: string[] | allowListCallback
+    allowList?: string[] | AllowListCallback
     kickMessage?: string
   },
   /** Link a connecting client as soon as he joins if no one else is currently controlling the proxy. Default: true */
@@ -163,13 +164,13 @@ export class InspectorProxy extends EventEmitter {
     }
   }
 
-  playerInWhitelist(name: string): boolean {
+  playerInWhitelist(name: string, uuid: string): boolean {
     if (!this.proxyOptions.security?.allowList) return true
     if (typeof this.proxyOptions.security.allowList === 'object') {
       return this.proxyOptions.security?.allowList?.find(n => n.toLowerCase() === name.toLowerCase()) !== undefined
     } else if (typeof this.proxyOptions.security.allowList === 'function') {
       try {
-        return !!this.proxyOptions.security.allowList(name)
+        return !!this.proxyOptions.security.allowList(name, uuid.toLowerCase())
       } catch (e) {
         console.warn('allowlist callback had error', e)
         return false
@@ -428,7 +429,7 @@ export class InspectorProxy extends EventEmitter {
   }
 
   private async onClientLogin(client: ServerClient) {
-    if (!this.playerInWhitelist(client.username)) {
+    if (!this.playerInWhitelist(client.username, client.uuid)) {
       const { address, family, port } = {
         address: 'unknown',
         family: 'unknown',
