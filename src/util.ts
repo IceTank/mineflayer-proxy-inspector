@@ -5,6 +5,7 @@ import { performance } from "perf_hooks";
 const ChatMessage = require('prismarine-chat')('1.12.2')
 import { EventEmitter } from 'events'
 import { setTimeout as timeoutPromise } from 'timers/promises'
+import { comp as nbtComp, string as nbtString } from 'prismarine-nbt'
 
 export const NoneItemData = {
   blockId: -1,
@@ -36,9 +37,19 @@ export class FakeEntity {
   }
 }
 
-export function sendMessage(client: ServerClient | Client, message: string, position: number = 1) {
-  const messageObj = new ChatMessage(message)
-  client.write('system_chat', { content: messageObj.json.toString(), position })
+export function sendSystemMessage(client: ServerClient | Client, message: string, position: number = 1) {
+  if (typeof message !== 'string') {
+    throw new Error('message must be a string not ' + typeof message)
+  }
+  const tag = nbtComp({
+    text: nbtString(message)
+  })
+
+  client.write('chat', {
+    message: tag,
+    position: 2,
+    sender: '0'
+  })
 }
 
 export async function sleep(ms: number) {

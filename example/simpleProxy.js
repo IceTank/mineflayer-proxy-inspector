@@ -1,7 +1,6 @@
 const { InspectorProxy } = require('../')
-const { Vec3 } = require('vec3')
 
-const Version = '1.19.4'
+const Version = '1.21'
 
 const proxy = new InspectorProxy({
   host: 'localhost',
@@ -21,7 +20,7 @@ const proxy = new InspectorProxy({
   spawnFakePlayer: true,
   // positionOffset: new Vec3(5000, 0, 0),
   worldCaching: false,
-  port: 25566
+  port: 25566 // port of the proxy you need to connect to
 })
 
 proxy.on('clientDisconnect', () => {

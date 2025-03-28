@@ -1,7 +1,7 @@
 import { Client, Conn, PacketMiddleware, packetAbilities, sendTo, SimplePositionTransformer } from "@icetank/mcproxy";
 import { createServer, ServerClient } from "minecraft-protocol";
 import type { Server } from "minecraft-protocol";
-import { sendMessage, sleep, onceWithCleanup } from "./util";
+import { sendSystemMessage, sleep, onceWithCleanup } from "./util";
 import { FakePlayer } from "./FakePlayer";
 import { FakeSpectator } from "./FakeSpectator";
 import { BotOptions } from "mineflayer";
@@ -12,8 +12,9 @@ import path from "path";
 import fs from 'fs'
 import { WorldManager } from "./worldManager";
 import { Vec3 } from 'vec3'
+import 'mineflayer';
 
-export { sendMessage }
+export { sendSystemMessage as sendMessage }
 
 /** Allowlist callback to check if a given player is allowed to join. PlayerUUID is lowercase. */
 type AllowListCallback = (username: string, playerUUID: string) => boolean
@@ -25,7 +26,7 @@ export interface ProxyOptions {
    * Version to use. 
    * @default 1.19.4
    */
-  version?: '1.12.2' | '1.19.4'
+  version?: '1.21.1'
   /**
    * Spawn a fake player when not in control.
    * @default true
@@ -74,12 +75,12 @@ declare module 'mineflayer' {
   interface Bot {
     proxy: {
       /** @deprecated Use botHasControl instead */
-      botIsControlling: boolean
-      emitter: ProxyInspectorEmitter
-      message(client: Client | ServerClient, message: string, prefix?: boolean, allowFormatting?: boolean, position?: number): void
-      broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean, position?: number): void
-      botHasControl(): boolean
-    }
+      botIsControlling: boolean;
+      emitter: ProxyInspectorEmitter;
+      message(client: Client | ServerClient, message: string, prefix?: boolean, allowFormatting?: boolean, position?: number): void;
+      broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean, position?: number): void;
+      botHasControl(): boolean;
+    };
   }
 }
 
@@ -120,7 +121,7 @@ export class InspectorProxy extends EventEmitter {
     super()
     this.proxyOptions = proxyOptions
     this.server = undefined
-    this.proxyOptions.version ??= '1.19.4'
+    this.proxyOptions.version ??= '1.21.1'
     this.proxyOptions.spawnFakePlayer = proxyOptions.spawnFakePlayer ?? true
     this.blockedPacketsWhenNotInControl = ['abilities', 'position']
 
@@ -203,7 +204,7 @@ export class InspectorProxy extends EventEmitter {
     }
     const conn = new Conn({
       ...this.options,
-      version: this.proxyOptions.version ?? '1.19.4',
+      version: this.proxyOptions.version ?? '1.21.1',
     }, {
       toClientMiddleware: [...this.genToClientMiddleware(), ...(this.proxyOptions.toClientMiddlewares || [])],
       toServerMiddleware: [...this.genToServerMiddleware(), ...(this.proxyOptions.toServerMiddlewares || [])],
@@ -289,7 +290,7 @@ export class InspectorProxy extends EventEmitter {
     })
 
     // @ts-ignore
-    this.server.on('login', this.onClientLogin.bind(this))
+    this.server.on('playerJoin', this.onClientLogin.bind(this))
   }
 
   broadcastMessage(message: string, prefix?: boolean, allowFormatting?: boolean, position?: number) {
@@ -469,6 +470,7 @@ export class InspectorProxy extends EventEmitter {
     } else {
       this.attach(client)
     }
+    debugger
     await this.sendPackets(client as unknown as Client)
     
     const connect = this.proxyOptions.linkOnConnect && !this.conn.pclient
@@ -513,7 +515,7 @@ export class InspectorProxy extends EventEmitter {
     if (prefix) {
       message = `${this.proxyChatPrefix} ${message}`
     }
-    sendMessage(client, message, position)
+    sendSystemMessage(client, message, position)
   }
 
   printHelp(client: Client | ServerClient) {
